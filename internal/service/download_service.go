@@ -14,6 +14,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"godm/internal/engine"
+	"godm/internal/media"
 	"godm/internal/protocol"
 	"godm/internal/segment"
 	"godm/internal/storage"
@@ -101,6 +102,114 @@ func (s *DownloadService) ProbeURL(rawURL string) (*protocol.ResourceInfo, error
 
 	return protocol.Probe(ctx, cfg)
 }
+
+// IsVideoURL checks whether the given URL belongs to a supported video platform (YouTube, TikTok, etc.).
+func (s *DownloadService) IsVideoURL(rawURL string) bool {
+	return media.IsVideoPlatform(rawURL)
+}
+
+// InspectVideo fetches video title, thumbnail, creator, and available resolutions/audio formats.
+func (s *DownloadService) InspectVideo(rawURL string) (*media.MediaInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return media.InspectMedia(ctx, rawURL)
+}
+
+// StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms.
+func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, outputDir string, customFilename string) (*DownloadItem, error) {
+	if outputDir == "" {
+		outputDir = s.GetDefaultDownloadDir()
+	}
+
+	ctxProbe, cancelProbe := context.WithTimeout(context.Background(), 30*time.Second)
+	info, err := media.InspectMedia(ctxProbe, rawURL)
+	cancelProbe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect video: %w", err)
+	}
+
+	filename := info.Title + ".mp4"
+	if customFilename != "" {
+		filename = customFilename
+	}
+	destPath := filepath.Join(outputDir, filename)
+
+	taskID := fmt.Sprintf("vid_%d", time.Now().UnixNano())
+	item := &DownloadItem{
+		ID:          taskID,
+		URL:         rawURL,
+		Filename:    filename,
+		DestPath:    destPath,
+		Status:      StatusDownloading,
+		Connections: 1,
+		CreatedAt:   time.Now(),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	task := &activeTask{
+		item:    item,
+		cancel:  cancel,
+		running: true,
+	}
+
+	s.mu.Lock()
+	s.tasks[taskID] = task
+	s.mu.Unlock()
+
+	go func() {
+		defer func() {
+			s.mu.Lock()
+			task.running = false
+			s.mu.Unlock()
+		}()
+
+		err := media.DownloadMedia(ctx, rawURL, formatID, outputDir, customFilename, func(p media.MediaProgress) {
+			s.mu.Lock()
+			item.Percent = p.Percent
+			item.Speed = p.Speed
+			item.ETA = p.ETA
+			item.DownloadedBytes = p.Downloaded
+			item.TotalSize = p.Total
+			itemCopy := *item
+			s.mu.Unlock()
+
+			if s.app != nil {
+				s.app.Event.Emit("download:progress", itemCopy)
+			}
+		})
+
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if ctx.Err() != nil {
+			item.Status = StatusPaused
+			if s.app != nil {
+				s.app.Event.Emit("download:status", *item)
+			}
+			return
+		}
+
+		if err != nil {
+			item.Status = StatusError
+			item.Error = err.Error()
+			if s.app != nil {
+				s.app.Event.Emit("download:status", *item)
+			}
+			return
+		}
+
+		item.Status = StatusCompleted
+		item.Percent = 100
+		item.Speed = 0
+		item.ETA = "00:00:00"
+		if s.app != nil {
+			s.app.Event.Emit("download:status", *item)
+		}
+	}()
+
+	return item, nil
+}
+
 
 // StartDownload initiates a download task in the background.
 func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir string, customFilename string) (*DownloadItem, error) {

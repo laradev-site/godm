@@ -17,10 +17,12 @@ import {
   FileCode,
   X,
   Search,
+  Video,
 } from 'lucide-react';
 import * as DownloadService from '../bindings/godm/internal/service/downloadservice';
 import { DownloadItem, DownloadStatus } from '../bindings/godm/internal/service/models';
 import { ResourceInfo } from '../bindings/godm/internal/protocol/models';
+import { MediaInfo } from '../bindings/godm/internal/media/models';
 import './app.css';
 
 function formatBytes(bytes: number): string {
@@ -39,7 +41,7 @@ function getFileIcon(filename: string) {
   if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext)) {
     return <FileVideo size={20} />;
   }
-  if (['mp3', 'flac', 'wav', 'aac', 'ogg'].includes(ext)) {
+  if (['mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a'].includes(ext)) {
     return <FileAudio size={20} />;
   }
   if (['exe', 'msi', 'dmg', 'deb', 'app'].includes(ext)) {
@@ -63,6 +65,9 @@ export default function App() {
   const [customFilename, setCustomFilename] = useState('');
   const [isProbing, setIsProbing] = useState(false);
   const [probeInfo, setProbeInfo] = useState<ResourceInfo | null>(null);
+  const [mediaInfo, setMediaInfo] = useState<MediaInfo | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState('bestvideo+bestaudio/best');
+  const [isVideoMode, setIsVideoMode] = useState(false);
   const [probeError, setProbeError] = useState('');
 
   // Load initial downloads and default folder
@@ -129,40 +134,76 @@ export default function App() {
   }, [downloads, activeTab]);
 
   const handleProbe = async () => {
-    if (!url.trim()) return;
+    const trimmed = url.trim();
+    if (!trimmed) return;
     setIsProbing(true);
     setProbeError('');
+    setProbeInfo(null);
+    setMediaInfo(null);
+
     try {
-      const info = await DownloadService.ProbeURL(url.trim());
-      if (info) {
-        setProbeInfo(info);
-        if (!customFilename && info.Filename) {
-          setCustomFilename(info.Filename);
+      const isVid = await DownloadService.IsVideoURL(trimmed);
+      if (isVid) {
+        setIsVideoMode(true);
+        const info = await DownloadService.InspectVideo(trimmed);
+        if (info) {
+          setMediaInfo(info);
+          if (info.formats && info.formats.length > 0) {
+            setSelectedFormat(info.formats[0].formatId);
+          }
+          if (!customFilename && info.title) {
+            setCustomFilename(`${info.title}.mp4`);
+          }
+        }
+      } else {
+        setIsVideoMode(false);
+        const info = await DownloadService.ProbeURL(trimmed);
+        if (info) {
+          setProbeInfo(info);
+          if (!customFilename && info.Filename) {
+            setCustomFilename(info.Filename);
+          }
         }
       }
     } catch (err: any) {
-      setProbeError(err?.message || 'Failed to inspect URL');
+      setProbeError(err?.message || 'Failed to inspect link');
     } finally {
       setIsProbing(false);
     }
   };
 
   const handleStartDownload = async () => {
-    if (!url.trim()) return;
+    const trimmed = url.trim();
+    if (!trimmed) return;
+
     try {
-      const item = await DownloadService.StartDownload(
-        url.trim(),
-        connections,
-        defaultDir,
-        customFilename.trim()
-      );
-      if (item) {
-        setDownloads((prev) => [item, ...prev]);
+      let item: DownloadItem | null = null;
+      if (isVideoMode || mediaInfo) {
+        item = await DownloadService.StartVideoDownload(
+          trimmed,
+          selectedFormat,
+          defaultDir,
+          customFilename.trim()
+        );
+      } else {
+        item = await DownloadService.StartDownload(
+          trimmed,
+          connections,
+          defaultDir,
+          customFilename.trim()
+        );
       }
+
+      if (item) {
+        setDownloads((prev) => [item as DownloadItem, ...prev]);
+      }
+
       setIsModalOpen(false);
       setUrl('');
       setCustomFilename('');
       setProbeInfo(null);
+      setMediaInfo(null);
+      setIsVideoMode(false);
     } catch (err: any) {
       alert(`Error starting download: ${err?.message || err}`);
     }
@@ -190,7 +231,7 @@ export default function App() {
           </div>
           <div className="brand-text">
             <h1>godm</h1>
-            <p>Multi-Connection High-Speed Engine</p>
+            <p>Multi-Connection High-Speed Engine & Video Downloader</p>
           </div>
         </div>
 
@@ -246,7 +287,7 @@ export default function App() {
           <div className="empty-state">
             <Layers className="empty-icon" />
             <h3>No downloads in this view</h3>
-            <p>Paste a download link to begin high-speed multi-threaded acceleration.</p>
+            <p>Paste any file URL or YouTube / TikTok / Instagram video to accelerate.</p>
             <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
               <Plus size={16} />
               <span>Add Download</span>
@@ -402,12 +443,12 @@ export default function App() {
             </div>
 
             <div className="form-group">
-              <label>Download URL</label>
+              <label>Download URL (File or YouTube, TikTok, Instagram...)</label>
               <div className="input-with-button">
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="https://example.com/file.zip"
+                  placeholder="https://... or https://youtube.com/watch?v=..."
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   autoFocus
@@ -418,7 +459,7 @@ export default function App() {
                   disabled={isProbing || !url.trim()}
                 >
                   <Search size={15} />
-                  <span>{isProbing ? 'Inspecting...' : 'Probe'}</span>
+                  <span>{isProbing ? 'Inspecting...' : 'Inspect'}</span>
                 </button>
               </div>
             </div>
@@ -427,7 +468,52 @@ export default function App() {
               <div style={{ color: '#f87171', fontSize: '0.8rem' }}>{probeError}</div>
             )}
 
-            {probeInfo && (
+            {/* Video Platform Preview (YouTube, TikTok, etc.) */}
+            {mediaInfo && (
+              <div className="video-preview-card">
+                {mediaInfo.thumbnail && (
+                  <div className="video-thumb-container">
+                    <img
+                      src={mediaInfo.thumbnail}
+                      alt={mediaInfo.title}
+                      className="video-thumb"
+                    />
+                    {mediaInfo.platform && (
+                      <span className="platform-tag">{mediaInfo.platform}</span>
+                    )}
+                    {mediaInfo.duration && (
+                      <span className="duration-tag">{mediaInfo.duration}</span>
+                    )}
+                  </div>
+                )}
+
+                <div className="video-details">
+                  <div className="video-title">{mediaInfo.title}</div>
+                  {mediaInfo.uploader && (
+                    <div className="video-author">Channel: {mediaInfo.uploader}</div>
+                  )}
+
+                  <div className="form-group" style={{ marginTop: '8px' }}>
+                    <label>Select Quality / Resolution</label>
+                    <select
+                      className="format-select"
+                      value={selectedFormat}
+                      onChange={(e) => setSelectedFormat(e.target.value)}
+                    >
+                      {mediaInfo.formats?.map((fmt) => (
+                        <option key={fmt.formatId} value={fmt.formatId}>
+                          {fmt.label}{' '}
+                          {fmt.filesize > 0 ? `(~${formatBytes(fmt.filesize)})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Standard File Info Preview */}
+            {!mediaInfo && probeInfo && (
               <div className="probe-preview">
                 <div className="probe-row">
                   <span className="probe-label">File:</span>
@@ -459,27 +545,29 @@ export default function App() {
               <input
                 type="text"
                 className="form-input"
-                placeholder={probeInfo?.Filename || 'Auto-detected filename'}
+                placeholder="Filename on disk"
                 value={customFilename}
                 onChange={(e) => setCustomFilename(e.target.value)}
               />
             </div>
 
-            <div className="form-group">
-              <label>Concurrent Connections (Threads)</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {[1, 4, 8, 16, 32].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    className={`tab-btn ${connections === num ? 'active' : ''}`}
-                    onClick={() => setConnections(num)}
-                  >
-                    {num} Threads
-                  </button>
-                ))}
+            {!mediaInfo && (
+              <div className="form-group">
+                <label>Concurrent Connections (Threads)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[1, 4, 8, 16, 32].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      className={`tab-btn ${connections === num ? 'active' : ''}`}
+                      onClick={() => setConnections(num)}
+                    >
+                      {num} Threads
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="form-group">
               <label>Save Directory</label>
@@ -500,8 +588,8 @@ export default function App() {
                 onClick={handleStartDownload}
                 disabled={!url.trim()}
               >
-                <Download size={16} />
-                <span>Start Download</span>
+                {mediaInfo ? <Video size={16} /> : <Download size={16} />}
+                <span>{mediaInfo ? 'Download Video' : 'Start Download'}</span>
               </button>
             </div>
           </div>

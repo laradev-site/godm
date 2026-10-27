@@ -15,6 +15,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as application$0 from "../../../github.com/wailsapp/wails/v3/pkg/application/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as media$0 from "../media/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as protocol$0 from "../protocol/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -26,6 +29,20 @@ import * as $models from "./models.js";
  */
 export function GetDefaultDownloadDir(): $CancellablePromise<string> {
     return $Call.ByID(3013379163);
+}
+
+/**
+ * InspectVideo fetches video title, thumbnail, creator, and available resolutions/audio formats.
+ */
+export function InspectVideo(rawURL: string): $CancellablePromise<media$0.MediaInfo | null> {
+    return $Call.ByID(278494502, rawURL);
+}
+
+/**
+ * IsVideoURL checks whether the given URL belongs to a supported video platform (YouTube, TikTok, etc.).
+ */
+export function IsVideoURL(rawURL: string): $CancellablePromise<boolean> {
+    return $Call.ByID(495846505, rawURL);
 }
 
 /**
@@ -75,4 +92,11 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
  */
 export function StartDownload(rawURL: string, conns: number, outputDir: string, customFilename: string): $CancellablePromise<$models.DownloadItem | null> {
     return $Call.ByID(1887475167, rawURL, conns, outputDir, customFilename);
+}
+
+/**
+ * StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms.
+ */
+export function StartVideoDownload(rawURL: string, formatID: string, outputDir: string, customFilename: string): $CancellablePromise<$models.DownloadItem | null> {
+    return $Call.ByID(851512446, rawURL, formatID, outputDir, customFilename);
 }

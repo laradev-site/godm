@@ -5,6 +5,8 @@ bin/
 *.dll
 *.so
 *.dylib
+*.syso
+.task/
 /godm
 
 # Go build & test
