@@ -10,15 +10,35 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"godm/internal/service"
+	"godm/internal/storage"
 )
 
 const DefaultRPCPort = 9246
 
+type DirectStream struct {
+	URL         string `json:"url"`
+	ContentType string `json:"contentType,omitempty"`
+	Quality     string `json:"quality,omitempty"`
+	Size        int64  `json:"size,omitempty"`
+}
+
 type DownloadRequest struct {
-	URL      string `json:"url"`
-	Filename string `json:"filename,omitempty"`
-	Referrer string `json:"referrer,omitempty"`
-	FormatID string `json:"formatId,omitempty"`
+	URL           string            `json:"url"`
+	Filename      string            `json:"filename,omitempty"`
+	Referrer      string            `json:"referrer,omitempty"`
+	FormatID      string            `json:"formatId,omitempty"`
+	PageURL       string            `json:"pageUrl,omitempty"`
+	UserAgent     string            `json:"userAgent,omitempty"`
+	Cookies       string            `json:"cookies,omitempty"`
+	CookieJar     string            `json:"cookieJar,omitempty"`
+	Headers       map[string]string `json:"headers,omitempty"`
+	DirectStreams []DirectStream    `json:"directStreams,omitempty"`
+}
+
+type CookieSyncRequest struct {
+	Domain       string `json:"domain"`
+	CookieJar    string `json:"cookieJar"`
+	CookieHeader string `json:"cookieHeader"`
 }
 
 type RPCServer struct {
@@ -66,6 +86,31 @@ func StartRPCServer(port int, app *application.App, downloadSvc *service.Downloa
 		})
 	}))
 
+	// Cookie sync endpoint from browser extension
+	mux.HandleFunc("/api/cookies/sync", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req CookieSyncRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.Domain != "" && (req.CookieJar != "" || req.CookieHeader != "") {
+			_ = storage.SaveDomainCookies(req.Domain, req.CookieJar, req.CookieHeader)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"domain":  req.Domain,
+			"message": "Cookies synchronized successfully",
+		})
+	}))
+
 	// Download trigger endpoint
 	mux.HandleFunc("/api/download", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -84,6 +129,15 @@ func StartRPCServer(port int, app *application.App, downloadSvc *service.Downloa
 			return
 		}
 
+		// Automatically persist session cookies for domain if provided
+		targetDomain := req.PageURL
+		if targetDomain == "" {
+			targetDomain = req.URL
+		}
+		if req.CookieJar != "" || req.Cookies != "" {
+			_ = storage.SaveDomainCookies(targetDomain, req.CookieJar, req.Cookies)
+		}
+
 		// Focus and show main window
 		if app != nil {
 			windows := app.Window.GetAll()
@@ -91,7 +145,7 @@ func StartRPCServer(port int, app *application.App, downloadSvc *service.Downloa
 				win.Show()
 				win.Focus()
 			}
-			// Notify UI to open Add Download modal prefilled with URL
+			// Notify UI to open Add Download modal prefilled with URL and auth session
 			app.Event.Emit("extension:new-download", req)
 		}
 

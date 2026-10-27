@@ -67,13 +67,14 @@ type DownloadItem struct {
 }
 
 type activeTask struct {
-	item     *DownloadItem
-	cancel   context.CancelFunc
-	state    *storage.TaskState
-	cfg      *config.Config
-	running  bool
-	isVid    bool
-	formatID string
+	item      *DownloadItem
+	cancel    context.CancelFunc
+	state     *storage.TaskState
+	cfg       *config.Config
+	running   bool
+	isVid     bool
+	formatID  string
+	mediaOpts *media.MediaOptions
 }
 
 // DownloadService is registered as a Wails service to bind download management methods.
@@ -166,8 +167,24 @@ func (s *DownloadService) OpenCategoryFolder(category string) error {
 
 // ProbeURL inspects target URL capabilities (Content-Length, Accept-Ranges, filename).
 func (s *DownloadService) ProbeURL(rawURL string) (*protocol.ResourceInfo, error) {
+	return s.ProbeURLWithHeaders(rawURL, nil, "")
+}
+
+// ProbeURLWithHeaders inspects target URL with custom authentication headers and cookies.
+func (s *DownloadService) ProbeURLWithHeaders(rawURL string, headers map[string]string, userAgent string) (*protocol.ResourceInfo, error) {
 	cfg := config.NewDefaultConfig()
 	cfg.URL = rawURL
+	if headers != nil {
+		cfg.Headers = headers
+	}
+	if userAgent != "" {
+		cfg.UserAgent = userAgent
+	}
+	if cfg.Headers["Cookie"] == "" {
+		if cookie := storage.GetCookieHeader(rawURL); cookie != "" {
+			cfg.Headers["Cookie"] = cookie
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -181,9 +198,139 @@ func (s *DownloadService) IsVideoURL(rawURL string) bool {
 
 // InspectVideo fetches video title, thumbnail, creator, and available resolutions/audio formats.
 func (s *DownloadService) InspectVideo(rawURL string) (*media.MediaInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	return s.InspectVideoWithOptions(rawURL, media.MediaOptions{})
+}
+
+// InspectVideoWithOptions fetches video metadata with cookies or browser authentication.
+func (s *DownloadService) InspectVideoWithOptions(rawURL string, opts media.MediaOptions) (*media.MediaInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	return media.InspectMedia(ctx, rawURL)
+	return media.InspectMediaWithOptions(ctx, rawURL, &opts)
+}
+
+// HasCookiesForURL returns true if stored session cookies exist for this URL's domain.
+func (s *DownloadService) HasCookiesForURL(rawURL string) bool {
+	return storage.HasCookiesForDomain(rawURL)
+}
+
+// GetSyncedCookieDomains returns the list of domains with stored session cookies.
+func (s *DownloadService) GetSyncedCookieDomains() []string {
+	return storage.ListSyncedDomains()
+}
+
+// SaveDomainCookies stores session cookies for a domain.
+func (s *DownloadService) SaveDomainCookies(domain string, netscapeJar string, cookieHeader string) error {
+	return storage.SaveDomainCookies(domain, netscapeJar, cookieHeader)
+}
+
+// GetAvailableBrowsers returns a list of web browsers detected on this machine for cookie import.
+func (s *DownloadService) GetAvailableBrowsers() []string {
+	browsers := make([]string, 0)
+	checked := make(map[string]bool)
+
+	addBrowser := func(b string) {
+		if !checked[b] {
+			checked[b] = true
+			browsers = append(browsers, b)
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		progFiles := os.Getenv("ProgramFiles")
+		progFilesX86 := os.Getenv("ProgramFiles(x86)")
+		localApp := os.Getenv("LOCALAPPDATA")
+		appData := os.Getenv("APPDATA")
+
+		// Chrome
+		chromePaths := []string{
+			filepath.Join(progFiles, "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(progFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(localApp, "Google", "Chrome", "Application", "chrome.exe"),
+		}
+		for _, p := range chromePaths {
+			if _, err := os.Stat(p); err == nil {
+				addBrowser("chrome")
+				break
+			}
+		}
+
+		// Edge
+		edgePaths := []string{
+			filepath.Join(progFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
+			filepath.Join(progFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
+		}
+		for _, p := range edgePaths {
+			if _, err := os.Stat(p); err == nil {
+				addBrowser("edge")
+				break
+			}
+		}
+
+		// Firefox
+		firefoxPaths := []string{
+			filepath.Join(progFiles, "Mozilla Firefox", "firefox.exe"),
+			filepath.Join(progFilesX86, "Mozilla Firefox", "firefox.exe"),
+			filepath.Join(appData, "Mozilla", "Firefox"),
+		}
+		for _, p := range firefoxPaths {
+			if _, err := os.Stat(p); err == nil {
+				addBrowser("firefox")
+				break
+			}
+		}
+
+		// Brave
+		bravePaths := []string{
+			filepath.Join(progFiles, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+			filepath.Join(localApp, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+		}
+		for _, p := range bravePaths {
+			if _, err := os.Stat(p); err == nil {
+				addBrowser("brave")
+				break
+			}
+		}
+
+		// Opera
+		operaPaths := []string{
+			filepath.Join(localApp, "Programs", "Opera", "launcher.exe"),
+			filepath.Join(progFiles, "Opera", "launcher.exe"),
+		}
+		for _, p := range operaPaths {
+			if _, err := os.Stat(p); err == nil {
+				addBrowser("opera")
+				break
+			}
+		}
+
+		// Vivaldi
+		vivaldiPaths := []string{
+			filepath.Join(localApp, "Vivaldi", "Application", "vivaldi.exe"),
+			filepath.Join(progFiles, "Vivaldi", "Application", "vivaldi.exe"),
+		}
+		for _, p := range vivaldiPaths {
+			if _, err := os.Stat(p); err == nil {
+				addBrowser("vivaldi")
+				break
+			}
+		}
+	} else {
+		for _, b := range []string{"chrome", "google-chrome", "chromium", "firefox", "brave", "edge", "opera"} {
+			if _, err := exec.LookPath(b); err == nil {
+				norm := b
+				if strings.Contains(b, "chrome") {
+					norm = "chrome"
+				}
+				addBrowser(norm)
+			}
+		}
+	}
+
+	if len(browsers) == 0 {
+		browsers = []string{"chrome", "edge", "firefox"}
+	}
+
+	return browsers
 }
 
 func makeVideoSegments(n int) []storage.SegmentState {
@@ -229,6 +376,11 @@ func updateVideoSegments(segs []storage.SegmentState, pct float64) {
 
 // StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms using 16 concurrent fragments.
 func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, outputDir string, customFilename string) (*DownloadItem, error) {
+	return s.StartVideoDownloadWithOptions(rawURL, formatID, outputDir, customFilename, media.MediaOptions{})
+}
+
+// StartVideoDownloadWithOptions begins downloading a video with cookies or browser authentication.
+func (s *DownloadService) StartVideoDownloadWithOptions(rawURL string, formatID string, outputDir string, customFilename string, opts media.MediaOptions) (*DownloadItem, error) {
 	isAudioOnly := formatID == "bestaudio/best" || (strings.HasPrefix(formatID, "bestaudio") && !strings.Contains(formatID, "bestvideo"))
 	category := CategoryVideo
 	if isAudioOnly {
@@ -243,7 +395,7 @@ func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, out
 	}
 
 	ctxProbe, cancelProbe := context.WithTimeout(context.Background(), 30*time.Second)
-	info, err := media.InspectMedia(ctxProbe, rawURL)
+	info, err := media.InspectMediaWithOptions(ctxProbe, rawURL, &opts)
 	cancelProbe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect video: %w", err)
@@ -282,11 +434,12 @@ func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, out
 
 	ctx, cancel := context.WithCancel(context.Background())
 	task := &activeTask{
-		item:     item,
-		cancel:   cancel,
-		running:  true,
-		isVid:    true,
-		formatID: formatID,
+		item:      item,
+		cancel:    cancel,
+		running:   true,
+		isVid:     true,
+		formatID:  formatID,
+		mediaOpts: &opts,
 	}
 
 	s.mu.Lock()
@@ -309,7 +462,7 @@ func (s *DownloadService) runVideoDownload(ctx context.Context, id string, t *ac
 	outputDir := filepath.Dir(t.item.DestPath)
 	filename := filepath.Base(t.item.DestPath)
 
-	err := media.DownloadMedia(ctx, t.item.URL, t.formatID, outputDir, filename, func(p media.MediaProgress) {
+	err := media.DownloadMediaWithOptions(ctx, t.item.URL, t.formatID, outputDir, filename, t.mediaOpts, func(p media.MediaProgress) {
 		s.mu.Lock()
 		t.item.Percent = p.Percent
 		t.item.Speed = p.Speed
@@ -401,6 +554,11 @@ func (s *DownloadService) runVideoDownload(ctx context.Context, id string, t *ac
 
 // StartDownload initiates an accelerated multi-connection download task.
 func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir string, customFilename string) (*DownloadItem, error) {
+	return s.StartDownloadWithHeaders(rawURL, conns, outputDir, customFilename, nil, "")
+}
+
+// StartDownloadWithHeaders initiates an accelerated download with custom headers, cookies, and user-agent.
+func (s *DownloadService) StartDownloadWithHeaders(rawURL string, conns int, outputDir string, customFilename string, headers map[string]string, userAgent string) (*DownloadItem, error) {
 	if conns <= 0 {
 		conns = config.DefaultConnections
 	}
@@ -409,6 +567,20 @@ func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir stri
 	cfg.URL = rawURL
 	cfg.Connections = conns
 	cfg.Quiet = true
+	if headers != nil {
+		cfg.Headers = headers
+	}
+	if userAgent != "" {
+		cfg.UserAgent = userAgent
+	}
+	if cfg.Headers == nil {
+		cfg.Headers = make(map[string]string)
+	}
+	if cfg.Headers["Cookie"] == "" {
+		if cookie := storage.GetCookieHeader(rawURL); cookie != "" {
+			cfg.Headers["Cookie"] = cookie
+		}
+	}
 
 	// Probe URL
 	ctxProbe, cancelProbe := context.WithTimeout(context.Background(), 15*time.Second)

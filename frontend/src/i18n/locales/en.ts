@@ -84,4 +84,12 @@ export const en: Translations = {
   errorStarting: 'Error starting download',
   failedInspect: 'Failed to inspect URL',
   confirmDelete: 'Are you sure you want to remove this download task?',
+
+  // Authentication & Private Videos
+  authSessionActive: 'Authenticated Session Active',
+  authSessionDesc: 'Live session cookies captured from your browser extension',
+  authRequiredTitle: 'Authentication Required / Private Video',
+  authRequiredDesc: 'This video appears to be private or requires login.',
+  importFromBrowser: 'Import cookies from browser',
+  useExtensionRecommended: 'Use godm Browser Extension (Recommended)',
 };

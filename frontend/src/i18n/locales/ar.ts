@@ -84,4 +84,12 @@ export const ar: Translations = {
   errorStarting: 'حدث خطأ أثناء بدء التنزيل',
   failedInspect: 'فشل فحص الرابط',
   confirmDelete: 'هل أنت متأكد من رغبتك في حذف مهمة التنزيل هذه؟',
+
+  // Authentication & Private Videos
+  authSessionActive: 'جلسة مسجلة ونشطة',
+  authSessionDesc: 'تم التقاط كوكيز الجلسة من إضافة المتصفح الخاصة بك',
+  authRequiredTitle: 'يتطلب تسجيل الدخول / فيديو خاص',
+  authRequiredDesc: 'يبدو أن هذا الفيديو خاص أو يتطلب تسجيل الدخول.',
+  importFromBrowser: 'استيراد الكوكيز من المتصفح',
+  useExtensionRecommended: 'استخدم إضافة godm للمتصفح (موصى به)',
 };

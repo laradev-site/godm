@@ -3,5 +3,6 @@
 
 export type {
     MediaFormat,
-    MediaInfo
+    MediaInfo,
+    MediaOptions
 } from "./models.js";

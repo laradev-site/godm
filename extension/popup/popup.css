@@ -231,3 +231,35 @@ body {
 .btn-success:hover {
   background: #047857;
 }
+
+.auth-sync-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.btn-secondary {
+  background: #1e293b;
+  color: #93c5fd;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-secondary:hover {
+  background: #2563eb;
+  color: #fff;
+}
+
+.sync-status {
+  font-size: 0.65rem;
+  color: #10b981;
+  text-align: center;
+}

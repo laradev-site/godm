@@ -2,6 +2,7 @@ package media
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
+
+	"godm/internal/storage"
 )
 
 // MediaFormat represents a downloadable resolution or audio stream.
@@ -280,8 +284,86 @@ type RawYTDLPOutput struct {
 	} `json:"formats"`
 }
 
+// MediaOptions provides authentication, headers, and browser cookies for media inspection and download.
+type MediaOptions struct {
+	Cookies            string `json:"cookies,omitempty"`            // Raw Cookie header string
+	CookieJar          string `json:"cookieJar,omitempty"`          // Netscape format cookie text
+	CookieFile         string `json:"cookieFile,omitempty"`         // Path to existing cookies.txt
+	CookiesFromBrowser string `json:"cookiesFromBrowser,omitempty"` // "chrome", "edge", "firefox", "brave", "opera", "vivaldi"
+	UserAgent          string `json:"userAgent,omitempty"`
+	Referer            string `json:"referer,omitempty"`
+}
+
+// buildAuthArgs resolves cookies, headers, and returns the extra CLI arguments and any temporary files to clean up.
+func buildAuthArgs(mediaURL string, opts *MediaOptions) (args []string, cleanup func()) {
+	var tempFiles []string
+	cleanup = func() {
+		for _, f := range tempFiles {
+			_ = os.Remove(f)
+		}
+	}
+
+	var cookieFilePath string
+	var userAgent string
+	var referer string
+	var browserName string
+	var rawCookieStr string
+
+	if opts != nil {
+		if opts.CookieFile != "" {
+			cookieFilePath = opts.CookieFile
+		} else if opts.CookieJar != "" {
+			// Write temporary cookie file
+			tFile := filepath.Join(os.TempDir(), fmt.Sprintf("godm_cookie_%d.txt", time.Now().UnixNano()))
+			if err := os.WriteFile(tFile, []byte(opts.CookieJar), 0600); err == nil {
+				cookieFilePath = tFile
+				tempFiles = append(tempFiles, tFile)
+			}
+		}
+		browserName = strings.TrimSpace(opts.CookiesFromBrowser)
+		userAgent = strings.TrimSpace(opts.UserAgent)
+		referer = strings.TrimSpace(opts.Referer)
+		rawCookieStr = strings.TrimSpace(opts.Cookies)
+	}
+
+	// If no explicit cookie file was given, check storage for saved domain cookies
+	if cookieFilePath == "" && browserName == "" {
+		if path, found := storage.GetCookieFilePath(mediaURL); found {
+			cookieFilePath = path
+		}
+	}
+
+	// 1. Pass cookie file if available
+	if cookieFilePath != "" {
+		args = append(args, "--cookies", cookieFilePath)
+	} else if browserName != "" {
+		// 2. Pass --cookies-from-browser
+		args = append(args, "--cookies-from-browser", browserName)
+	} else if rawCookieStr != "" {
+		// 3. Fallback raw cookie header
+		args = append(args, "--add-header", fmt.Sprintf("Cookie: %s", rawCookieStr))
+	}
+
+	// Add User-Agent if provided
+	if userAgent != "" {
+		args = append(args, "--user-agent", userAgent)
+	}
+
+	// Add Referer if provided
+	if referer != "" {
+		args = append(args, "--add-header", fmt.Sprintf("Referer: %s", referer))
+	}
+
+	return args, cleanup
+}
+
 // InspectMedia queries yt-dlp for video metadata and available qualities.
 func InspectMedia(ctx context.Context, mediaURL string) (*MediaInfo, error) {
+	return InspectMediaWithOptions(ctx, mediaURL, nil)
+}
+
+// InspectMediaWithOptions queries yt-dlp for video metadata with optional authentication.
+func InspectMediaWithOptions(ctx context.Context, mediaURL string, opts *MediaOptions) (*MediaInfo, error) {
 	binPath := GetBinaryPath()
 	if binPath == "" {
 		var err error
@@ -291,9 +373,25 @@ func InspectMedia(ctx context.Context, mediaURL string) (*MediaInfo, error) {
 		}
 	}
 
-	cmd := exec.CommandContext(ctx, binPath, "--dump-json", "--no-playlist", "--no-warnings", mediaURL)
+	authArgs, cleanup := buildAuthArgs(mediaURL, opts)
+	defer cleanup()
+
+	args := []string{"--dump-json", "--no-playlist", "--no-warnings"}
+	args = append(args, authArgs...)
+	args = append(args, mediaURL)
+
+	cmd := exec.CommandContext(ctx, binPath, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
+		errStr := strings.TrimSpace(stderr.String())
+		if strings.Contains(errStr, "Cannot parse data") || strings.Contains(errStr, "login") || strings.Contains(errStr, "private") || strings.Contains(errStr, "Private") {
+			return nil, fmt.Errorf("this video appears to be private or requires login. Please open it with the godm browser extension or import cookies: %s", errStr)
+		}
+		if errStr != "" {
+			return nil, fmt.Errorf("media inspection failed: %s", errStr)
+		}
 		return nil, fmt.Errorf("media inspection failed: %w", err)
 	}
 
@@ -371,6 +469,19 @@ func DownloadMedia(
 	customFilename string,
 	progressCb func(p MediaProgress),
 ) error {
+	return DownloadMediaWithOptions(ctx, mediaURL, formatID, outputDir, customFilename, nil, progressCb)
+}
+
+// DownloadMediaWithOptions streams and downloads video via yt-dlp with authentication and cookies.
+func DownloadMediaWithOptions(
+	ctx context.Context,
+	mediaURL string,
+	formatID string,
+	outputDir string,
+	customFilename string,
+	opts *MediaOptions,
+	progressCb func(p MediaProgress),
+) error {
 	binPath := GetBinaryPath()
 	if binPath == "" {
 		return errors.New("media engine yt-dlp is not available")
@@ -394,6 +505,9 @@ func DownloadMedia(
 		outTemplate = filepath.Join(outputDir, "%(title)s.%(ext)s")
 	}
 
+	authArgs, cleanup := buildAuthArgs(mediaURL, opts)
+	defer cleanup()
+
 	args := []string{
 		"-f", formatID,
 		"--no-playlist",
@@ -406,6 +520,9 @@ func DownloadMedia(
 		"--fragment-retries", "10",
 		"-c", // Automatically continue/resume partially downloaded files
 	}
+
+	// Append authentication arguments (--cookies, --user-agent, etc.)
+	args = append(args, authArgs...)
 
 	if ffmpegPath != "" {
 		args = append(args, "--ffmpeg-location", ffmpegPath)

@@ -28,6 +28,9 @@ import {
   Check,
   Globe,
   Sparkles,
+  Lock,
+  ShieldAlert,
+  Compass,
 } from 'lucide-react';
 import * as DownloadService from '../bindings/godm/internal/service/downloadservice';
 import { DownloadItem, DownloadStatus } from '../bindings/godm/internal/service/models';
@@ -114,12 +117,34 @@ export default function App() {
   const [isVideoMode, setIsVideoMode] = useState(false);
   const [probeError, setProbeError] = useState('');
 
+  // Authentication & Browser Session state
+  const [authSession, setAuthSession] = useState<{
+    cookies?: string;
+    cookieJar?: string;
+    userAgent?: string;
+    referer?: string;
+    directStreams?: Array<{ url: string; quality?: string; contentType?: string; size?: number }>;
+  } | null>(null);
+  const [availableBrowsers, setAvailableBrowsers] = useState<string[]>([]);
+  const [selectedBrowserCookie, setSelectedBrowserCookie] = useState<string>('none');
+  const [hasDomainCookies, setHasDomainCookies] = useState<boolean>(false);
+
   // Extension Guide Modal state
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [extensionPath, setExtensionPath] = useState('');
   const [copied, setCopied] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [guideBrowser, setGuideBrowser] = useState<'chrome' | 'edge' | 'brave'>('chrome');
+
+  // Check if domain has stored cookies whenever URL changes
+  useEffect(() => {
+    const trimmed = url.trim();
+    if (trimmed) {
+      DownloadService.HasCookiesForURL(trimmed).then(setHasDomainCookies).catch(() => {});
+    } else {
+      setHasDomainCookies(false);
+    }
+  }, [url]);
 
   const getBrowserExtensionUrl = (browser: 'chrome' | 'edge' | 'brave') => {
     switch (browser) {
@@ -138,7 +163,18 @@ export default function App() {
     setTimeout(() => setCopiedUrl(false), 2000);
   };
 
-  const inspectUrl = async (targetUrl: string, initialFilename?: string) => {
+  const inspectUrl = async (
+    targetUrl: string,
+    initialFilename?: string,
+    overrideAuth?: {
+      cookies?: string;
+      cookieJar?: string;
+      cookiesFromBrowser?: string;
+      userAgent?: string;
+      referer?: string;
+      directStreams?: Array<{ url: string; quality?: string; contentType?: string; size?: number }>;
+    }
+  ) => {
     const trimmed = targetUrl.trim();
     if (!trimmed) return;
     setIsProbing(true);
@@ -151,8 +187,59 @@ export default function App() {
       if (isVid) {
         setIsVideoMode(true);
         setDetectedCategory('Video');
-        const info = await DownloadService.InspectVideo(trimmed);
+
+        const mediaOpts = {
+          cookies: overrideAuth?.cookies ?? authSession?.cookies ?? '',
+          cookieJar: overrideAuth?.cookieJar ?? authSession?.cookieJar ?? '',
+          cookiesFromBrowser:
+            overrideAuth?.cookiesFromBrowser ??
+            (selectedBrowserCookie !== 'none' ? selectedBrowserCookie : ''),
+          userAgent: overrideAuth?.userAgent ?? authSession?.userAgent ?? '',
+          referer: overrideAuth?.referer ?? authSession?.referer ?? '',
+        };
+
+        let info: any = null;
+        try {
+          info = await DownloadService.InspectVideoWithOptions(trimmed, mediaOpts);
+        } catch (inspectErr: any) {
+          const streams = overrideAuth?.directStreams || authSession?.directStreams || [];
+          if (streams.length > 0) {
+            info = {
+              id: 'direct_stream',
+              url: trimmed,
+              title: initialFilename ? initialFilename.replace(/\.[^/.]+$/, '') : 'Direct Stream Video',
+              thumbnail: '',
+              duration: 'N/A',
+              uploader: 'Browser Extension Stream',
+              platform: 'Direct Stream',
+              formats: streams.map((s, idx) => ({
+                formatId: `direct_${idx}`,
+                resolution: s.quality || 'Direct Stream',
+                ext: 'mp4',
+                filesize: s.size || 0,
+                label: `⚡ ${s.quality || 'Direct Stream'} (Instant)`,
+                isAudioOnly: false,
+              })),
+            };
+          } else {
+            throw inspectErr;
+          }
+        }
+
         if (info) {
+          const streams = overrideAuth?.directStreams || authSession?.directStreams || [];
+          if (streams.length > 0 && info.formats) {
+            const directFormats = streams.map((s, idx) => ({
+              formatId: `direct_${idx}`,
+              resolution: s.quality || 'Direct Stream',
+              ext: 'mp4',
+              filesize: s.size || 0,
+              label: `⚡ ${s.quality || 'Direct Stream'} (Instant)`,
+              isAudioOnly: false,
+            }));
+            info.formats = [...directFormats, ...info.formats];
+          }
+
           setMediaInfo(info);
           if (info.formats && info.formats.length > 0) {
             setSelectedFormat(info.formats[0].formatId);
@@ -164,7 +251,14 @@ export default function App() {
         }
       } else {
         setIsVideoMode(false);
-        const info = await DownloadService.ProbeURL(trimmed);
+        const headers: Record<string, string> = {};
+        const cookies = overrideAuth?.cookies ?? authSession?.cookies;
+        if (cookies) headers['Cookie'] = cookies;
+        const referer = overrideAuth?.referer ?? authSession?.referer;
+        if (referer) headers['Referer'] = referer;
+        const ua = overrideAuth?.userAgent ?? authSession?.userAgent ?? '';
+
+        const info = await DownloadService.ProbeURLWithHeaders(trimmed, headers, ua);
         if (info) {
           setProbeInfo(info);
           const fname = initialFilename || info.Filename || 'download.bin';
@@ -225,6 +319,12 @@ export default function App() {
   useEffect(() => {
     DownloadService.GetDefaultDownloadDir().then(setDefaultDir);
     DownloadService.GetExtensionPath().then(setExtensionPath).catch(() => {});
+    DownloadService.GetAvailableBrowsers()
+      .then((b) => {
+        if (b && b.length > 0) setAvailableBrowsers(b);
+      })
+      .catch(() => {});
+
     DownloadService.ListDownloads().then((items) => {
       if (items) {
         const valid = items.filter((i): i is DownloadItem => i !== null);
@@ -265,13 +365,21 @@ export default function App() {
       });
     });
 
-    // Extension trigger: opens modal with URL prefilled and starts auto-inspection
+    // Extension trigger: opens modal with URL prefilled and starts auto-inspection with auth session
     const unbindExtension = Events.On('extension:new-download', (event: any) => {
       const data = event.data;
       if (data && data.url) {
         setUrl(data.url);
         setIsModalOpen(true);
-        inspectUrl(data.url, data.filename);
+        const session = {
+          cookies: data.cookies || '',
+          cookieJar: data.cookieJar || '',
+          userAgent: data.userAgent || '',
+          referer: data.referrer || data.pageUrl || '',
+          directStreams: data.directStreams || [],
+        };
+        setAuthSession(session);
+        inspectUrl(data.url, data.filename, session);
       }
     });
 
@@ -425,18 +533,54 @@ export default function App() {
     try {
       let item: DownloadItem | null = null;
       if (isVideoMode || mediaInfo) {
-        item = await DownloadService.StartVideoDownload(
-          trimmed,
-          selectedFormat,
-          defaultDir,
-          customFilename.trim()
-        );
+        // If user picked a direct stream from extension, use accelerated multi-thread download directly
+        if (selectedFormat.startsWith('direct_')) {
+          const idx = parseInt(selectedFormat.replace('direct_', ''), 10);
+          const streams = authSession?.directStreams || [];
+          const stream = streams[idx];
+          if (stream && stream.url) {
+            const headers: Record<string, string> = {};
+            if (authSession?.cookies) headers['Cookie'] = authSession.cookies;
+            if (authSession?.referer) headers['Referer'] = authSession.referer;
+            item = await DownloadService.StartDownloadWithHeaders(
+              stream.url,
+              connections,
+              defaultDir,
+              customFilename.trim(),
+              headers,
+              authSession?.userAgent || ''
+            );
+          }
+        }
+
+        if (!item) {
+          const mediaOpts = {
+            cookies: authSession?.cookies || '',
+            cookieJar: authSession?.cookieJar || '',
+            cookiesFromBrowser:
+              selectedBrowserCookie !== 'none' ? selectedBrowserCookie : '',
+            userAgent: authSession?.userAgent || '',
+            referer: authSession?.referer || '',
+          };
+          item = await DownloadService.StartVideoDownloadWithOptions(
+            trimmed,
+            selectedFormat,
+            defaultDir,
+            customFilename.trim(),
+            mediaOpts
+          );
+        }
       } else {
-        item = await DownloadService.StartDownload(
+        const headers: Record<string, string> = {};
+        if (authSession?.cookies) headers['Cookie'] = authSession.cookies;
+        if (authSession?.referer) headers['Referer'] = authSession.referer;
+        item = await DownloadService.StartDownloadWithHeaders(
           trimmed,
           connections,
           defaultDir,
-          customFilename.trim()
+          customFilename.trim(),
+          headers,
+          authSession?.userAgent || ''
         );
       }
 
@@ -451,6 +595,8 @@ export default function App() {
       setProbeInfo(null);
       setMediaInfo(null);
       setIsVideoMode(false);
+      setAuthSession(null);
+      setSelectedBrowserCookie('none');
     } catch (err: any) {
       alert(`Error starting download: ${err?.message || err}`);
     }
@@ -1133,8 +1279,75 @@ export default function App() {
               </div>
             </div>
 
+            {(authSession?.cookies || authSession?.cookieJar) ? (
+              <div className="auth-status-banner active">
+                <Lock size={14} />
+                <div className="auth-status-text">
+                  <strong>{t.authSessionActive || 'Authenticated Session Active'}</strong>
+                  <span>{t.authSessionDesc || 'Live session cookies captured from your browser extension'}</span>
+                </div>
+              </div>
+            ) : hasDomainCookies ? (
+              <div className="auth-status-banner saved">
+                <Check size={14} />
+                <div className="auth-status-text">
+                  <strong>Saved Browser Session</strong>
+                  <span>Using stored authentication cookies for this platform</span>
+                </div>
+              </div>
+            ) : null}
+
             {probeError && (
-              <div style={{ color: '#f87171', fontSize: '0.8rem' }}>{probeError}</div>
+              <div className="probe-error-card">
+                <div className="probe-error-msg">{probeError}</div>
+                {(probeError.toLowerCase().includes('private') ||
+                  probeError.toLowerCase().includes('login') ||
+                  probeError.toLowerCase().includes('exit status 1')) && (
+                  <div className="private-video-helper">
+                    <div className="helper-header">
+                      <ShieldAlert size={14} />
+                      <span>{t.authRequiredTitle || 'Private Video / Login Required'}</span>
+                    </div>
+                    <p className="helper-text">
+                      {t.authRequiredDesc ||
+                        'This video appears to be private or requires login. Use the godm extension or import cookies from your browser.'}
+                    </p>
+                    <div className="helper-options">
+                      {availableBrowsers.length > 0 && (
+                        <div className="browser-auth-row">
+                          <label>{t.importFromBrowser || 'Import from browser'}:</label>
+                          <select
+                            className="browser-select"
+                            value={selectedBrowserCookie}
+                            onChange={(e) => {
+                              const b = e.target.value;
+                              setSelectedBrowserCookie(b);
+                              if (b !== 'none') {
+                                inspectUrl(url, customFilename, { cookiesFromBrowser: b });
+                              }
+                            }}
+                          >
+                            <option value="none">Choose browser...</option>
+                            {availableBrowsers.map((b) => (
+                              <option key={b} value={b}>
+                                {b.toUpperCase()}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-extension-helper"
+                        onClick={() => setIsGuideOpen(true)}
+                      >
+                        <Compass size={13} />
+                        <span>{t.useExtensionRecommended || 'Use godm Browser Extension (Recommended)'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Video Preview */}

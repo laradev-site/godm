@@ -26,3 +26,30 @@ export interface MediaInfo {
     "platform": string;
     "formats": MediaFormat[] | null;
 }
+
+/**
+ * MediaOptions provides authentication, headers, and browser cookies for media inspection and download.
+ */
+export interface MediaOptions {
+    /**
+     * Raw Cookie header string
+     */
+    "cookies"?: string;
+
+    /**
+     * Netscape format cookie text
+     */
+    "cookieJar"?: string;
+
+    /**
+     * Path to existing cookies.txt
+     */
+    "cookieFile"?: string;
+
+    /**
+     * "chrome", "edge", "firefox", "brave", "opera", "vivaldi"
+     */
+    "cookiesFromBrowser"?: string;
+    "userAgent"?: string;
+    "referer"?: string;
+}

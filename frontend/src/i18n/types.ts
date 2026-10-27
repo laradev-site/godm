@@ -82,6 +82,14 @@ export interface Translations {
   errorStarting: string;
   failedInspect: string;
   confirmDelete: string;
+
+  // Authentication & Private Videos
+  authSessionActive?: string;
+  authSessionDesc?: string;
+  authRequiredTitle?: string;
+  authRequiredDesc?: string;
+  importFromBrowser?: string;
+  useExtensionRecommended?: string;
 }
 
 export type SupportedLanguage =

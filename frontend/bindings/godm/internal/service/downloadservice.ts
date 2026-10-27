@@ -32,6 +32,13 @@ export function DeleteDownload(id: string, deleteFile: boolean): $CancellablePro
 }
 
 /**
+ * GetAvailableBrowsers returns a list of web browsers detected on this machine for cookie import.
+ */
+export function GetAvailableBrowsers(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(2510490799);
+}
+
+/**
  * GetCategory determines the IDM-style category based on file extension.
  */
 export function GetCategory(filename: string): $CancellablePromise<string> {
@@ -60,10 +67,31 @@ export function GetExtensionPath(): $CancellablePromise<string> {
 }
 
 /**
+ * GetSyncedCookieDomains returns the list of domains with stored session cookies.
+ */
+export function GetSyncedCookieDomains(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(2603573928);
+}
+
+/**
+ * HasCookiesForURL returns true if stored session cookies exist for this URL's domain.
+ */
+export function HasCookiesForURL(rawURL: string): $CancellablePromise<boolean> {
+    return $Call.ByID(2553256566, rawURL);
+}
+
+/**
  * InspectVideo fetches video title, thumbnail, creator, and available resolutions/audio formats.
  */
 export function InspectVideo(rawURL: string): $CancellablePromise<media$0.MediaInfo | null> {
     return $Call.ByID(278494502, rawURL);
+}
+
+/**
+ * InspectVideoWithOptions fetches video metadata with cookies or browser authentication.
+ */
+export function InspectVideoWithOptions(rawURL: string, opts: media$0.MediaOptions): $CancellablePromise<media$0.MediaInfo | null> {
+    return $Call.ByID(54487564, rawURL, opts);
 }
 
 /**
@@ -123,6 +151,13 @@ export function ProbeURL(rawURL: string): $CancellablePromise<protocol$0.Resourc
 }
 
 /**
+ * ProbeURLWithHeaders inspects target URL with custom authentication headers and cookies.
+ */
+export function ProbeURLWithHeaders(rawURL: string, headers: { [_ in string]?: string } | null, userAgent: string): $CancellablePromise<protocol$0.ResourceInfo | null> {
+    return $Call.ByID(503994696, rawURL, headers, userAgent);
+}
+
+/**
  * ResumeAll resumes all paused downloads.
  */
 export function ResumeAll(): $CancellablePromise<void> {
@@ -134,6 +169,13 @@ export function ResumeAll(): $CancellablePromise<void> {
  */
 export function ResumeDownload(id: string): $CancellablePromise<void> {
     return $Call.ByID(4210280854, id);
+}
+
+/**
+ * SaveDomainCookies stores session cookies for a domain.
+ */
+export function SaveDomainCookies(domain: string, netscapeJar: string, cookieHeader: string): $CancellablePromise<void> {
+    return $Call.ByID(4040954471, domain, netscapeJar, cookieHeader);
 }
 
 /**
@@ -151,10 +193,24 @@ export function StartDownload(rawURL: string, conns: number, outputDir: string, 
 }
 
 /**
+ * StartDownloadWithHeaders initiates an accelerated download with custom headers, cookies, and user-agent.
+ */
+export function StartDownloadWithHeaders(rawURL: string, conns: number, outputDir: string, customFilename: string, headers: { [_ in string]?: string } | null, userAgent: string): $CancellablePromise<$models.DownloadItem | null> {
+    return $Call.ByID(1842846919, rawURL, conns, outputDir, customFilename, headers, userAgent);
+}
+
+/**
  * StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms using 16 concurrent fragments.
  */
 export function StartVideoDownload(rawURL: string, formatID: string, outputDir: string, customFilename: string): $CancellablePromise<$models.DownloadItem | null> {
     return $Call.ByID(851512446, rawURL, formatID, outputDir, customFilename);
+}
+
+/**
+ * StartVideoDownloadWithOptions begins downloading a video with cookies or browser authentication.
+ */
+export function StartVideoDownloadWithOptions(rawURL: string, formatID: string, outputDir: string, customFilename: string, opts: media$0.MediaOptions): $CancellablePromise<$models.DownloadItem | null> {
+    return $Call.ByID(1031995572, rawURL, formatID, outputDir, customFilename, opts);
 }
 
 /**

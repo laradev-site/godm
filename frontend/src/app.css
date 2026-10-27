@@ -862,6 +862,139 @@ html, body {
   padding-top: 12px;
 }
 
+/* Auth Session Banner */
+.auth-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.auth-status-banner.active {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+.auth-status-banner.saved {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+.auth-status-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.auth-status-text strong {
+  font-weight: 600;
+  color: #fff;
+}
+
+.auth-status-text span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Probe Error & Private Video Helper */
+.probe-error-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.probe-error-msg {
+  color: #f87171;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.private-video-helper {
+  background: #0f172a;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.helper-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fbbf24;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.helper-text {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.helper-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.browser-auth-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.browser-select {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #f1f5f9;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.browser-select:focus {
+  border-color: #3b82f6;
+}
+
+.btn-extension-helper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-extension-helper:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
 /* Video Card in Modal */
 .video-preview-card {
   background: #0b0f19;

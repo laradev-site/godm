@@ -10,9 +10,12 @@ const activeVideoBox = document.getElementById('active-video-box');
 const videoPlatformBadge = document.getElementById('video-platform-badge');
 const activeVideoTitle = document.getElementById('active-video-title');
 const downloadCurrentBtn = document.getElementById('download-current-btn');
+const syncCookiesBtn = document.getElementById('sync-cookies-btn');
+const syncStatus = document.getElementById('sync-status');
 
 let currentTabVideoUrl = '';
 let currentTabVideoTitle = '';
+let currentTabUrl = '';
 
 // Check godm connection status
 function updateStatus() {
@@ -27,12 +30,34 @@ function updateStatus() {
   });
 }
 
+// Sync cookies button
+if (syncCookiesBtn) {
+  syncCookiesBtn.addEventListener('click', () => {
+    syncCookiesBtn.innerText = 'Syncing session...';
+    chrome.runtime.sendMessage({ action: 'sync-cookies', url: currentTabUrl }, (res) => {
+      if (res && res.success) {
+        syncCookiesBtn.innerText = '✓ Session Synced to godm!';
+        if (syncStatus) syncStatus.innerText = 'Private videos ready to download';
+        setTimeout(() => {
+          syncCookiesBtn.innerText = '🔒 Sync Tab Session to godm';
+        }, 3000);
+      } else {
+        syncCookiesBtn.innerText = 'Failed: Start godm app';
+        setTimeout(() => {
+          syncCookiesBtn.innerText = '🔒 Sync Tab Session to godm';
+        }, 3000);
+      }
+    });
+  });
+}
+
 // Check current active tab for videos
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (!tabs || tabs.length === 0) return;
   const tab = tabs[0];
   const url = tab.url || '';
   const title = tab.title || '';
+  currentTabUrl = url;
 
   const isVideoPlatform = /(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|twitter\.com|x\.com|facebook\.com|vimeo\.com|reddit\.com|twitch\.tv|dailymotion\.com)/i.test(url);
 

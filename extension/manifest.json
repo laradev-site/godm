@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "godm Download Accelerator Integration",
-  "version": "0.1.0",
-  "description": "Seamlessly captures download links, YouTube/TikTok videos, and accelerates downloads with godm.",
+  "version": "0.2.0",
+  "description": "Seamlessly captures download links, private/authenticated YouTube/Facebook/TikTok videos, and accelerates downloads with godm.",
   "permissions": [
     "downloads",
     "contextMenus",
     "storage",
-    "activeTab"
+    "activeTab",
+    "cookies",
+    "webRequest"
   ],
   "host_permissions": [
     "http://127.0.0.1:9246/*",
