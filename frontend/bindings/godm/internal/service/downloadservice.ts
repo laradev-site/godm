@@ -32,6 +32,20 @@ export function DeleteDownload(id: string, deleteFile: boolean): $CancellablePro
 }
 
 /**
+ * GetCategory determines the IDM-style category based on file extension.
+ */
+export function GetCategory(filename: string): $CancellablePromise<string> {
+    return $Call.ByID(986708175, filename);
+}
+
+/**
+ * GetCategoryDir returns the absolute path to a category download folder, creating it if necessary.
+ */
+export function GetCategoryDir(category: string): $CancellablePromise<string> {
+    return $Call.ByID(408640558, category);
+}
+
+/**
  * GetDefaultDownloadDir returns the user's standard Downloads folder.
  */
 export function GetDefaultDownloadDir(): $CancellablePromise<string> {
@@ -67,6 +81,13 @@ export function ListDownloads(): $CancellablePromise<($models.DownloadItem | nul
 }
 
 /**
+ * OpenCategoryFolder opens the designated category folder in the OS file explorer.
+ */
+export function OpenCategoryFolder(category: string): $CancellablePromise<void> {
+    return $Call.ByID(1500821441, category);
+}
+
+/**
  * OpenExtensionFolder opens the extension directory directly in the file explorer.
  */
 export function OpenExtensionFolder(): $CancellablePromise<void> {
@@ -88,7 +109,7 @@ export function OpenFolder(path: string): $CancellablePromise<void> {
 }
 
 /**
- * PauseDownload pauses an active download.
+ * PauseDownload pauses an active download cleanly and immediately.
  */
 export function PauseDownload(id: string): $CancellablePromise<void> {
     return $Call.ByID(4201575189, id);
@@ -109,7 +130,7 @@ export function ResumeAll(): $CancellablePromise<void> {
 }
 
 /**
- * ResumeDownload resumes a paused download.
+ * ResumeDownload resumes a paused download seamlessly.
  */
 export function ResumeDownload(id: string): $CancellablePromise<void> {
     return $Call.ByID(4210280854, id);
@@ -123,14 +144,14 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
 }
 
 /**
- * StartDownload initiates a download task in the background.
+ * StartDownload initiates an accelerated multi-connection download task.
  */
 export function StartDownload(rawURL: string, conns: number, outputDir: string, customFilename: string): $CancellablePromise<$models.DownloadItem | null> {
     return $Call.ByID(1887475167, rawURL, conns, outputDir, customFilename);
 }
 
 /**
- * StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms.
+ * StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms using 16 concurrent fragments.
  */
 export function StartVideoDownload(rawURL: string, formatID: string, outputDir: string, customFilename: string): $CancellablePromise<$models.DownloadItem | null> {
     return $Call.ByID(851512446, rawURL, formatID, outputDir, customFilename);

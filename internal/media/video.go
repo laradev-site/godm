@@ -296,7 +296,13 @@ func DownloadMedia(
 		"-f", formatID,
 		"--no-playlist",
 		"--newline",
-		"--progress-template", "%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
+		"--progress-template", "%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress.downloaded_bytes)s|%(progress.total_bytes)s",
+		"-N", "16", // 16 concurrent fragments for IDM-speed streaming downloads!
+		"--buffer-size", "1024k",
+		"--http-chunk-size", "10M",
+		"--retries", "10",
+		"--fragment-retries", "10",
+		"-c", // Automatically continue/resume partially downloaded files
 		"-o", outTemplate,
 		mediaURL,
 	}
@@ -325,11 +331,22 @@ func DownloadMedia(
 				speedStr := strings.TrimSpace(parts[1])
 				etaStr := strings.TrimSpace(parts[2])
 
+				var downloaded int64
+				var total int64
+				if len(parts) >= 4 {
+					downloaded, _ = strconv.ParseInt(strings.TrimSpace(parts[3]), 10, 64)
+				}
+				if len(parts) >= 5 {
+					total, _ = strconv.ParseInt(strings.TrimSpace(parts[4]), 10, 64)
+				}
+
 				if progressCb != nil {
 					progressCb(MediaProgress{
-						Percent: pct,
-						Speed:   parseSpeed(speedStr),
-						ETA:     etaStr,
+						Percent:    pct,
+						Speed:      parseSpeed(speedStr),
+						ETA:        etaStr,
+						Downloaded: downloaded,
+						Total:      total,
 					})
 				}
 			}

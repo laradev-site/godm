@@ -27,6 +27,9 @@ export interface DownloadItem {
     "segments": storage$0.SegmentState[] | null;
     "error"?: string;
     "createdAt": string;
+    "isVideo": boolean;
+    "formatId"?: string;
+    "category": string;
 }
 
 export enum DownloadStatus {

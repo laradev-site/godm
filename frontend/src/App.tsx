@@ -45,18 +45,24 @@ function formatBytes(bytes: number): string {
 type CategoryType = 'all' | 'compressed' | 'documents' | 'music' | 'programs' | 'video' | 'other';
 type StatusFilter = 'all' | 'downloading' | 'completed' | 'paused' | 'error';
 
-function getCategory(filename: string): CategoryType {
+function getCategory(filename: string, category?: string): CategoryType {
+  if (category) {
+    const lower = category.toLowerCase();
+    if (['compressed', 'documents', 'music', 'programs', 'video'].includes(lower)) {
+      return lower as CategoryType;
+    }
+  }
   const ext = filename.split('.').pop()?.toLowerCase() || '';
-  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'iso', 'xz'].includes(ext)) return 'compressed';
-  if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'm4v'].includes(ext)) return 'video';
-  if (['mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'wma'].includes(ext)) return 'music';
-  if (['exe', 'msi', 'apk', 'dmg', 'pkg', 'deb', 'rpm'].includes(ext)) return 'programs';
-  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'epub'].includes(ext)) return 'documents';
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'iso', 'xz', 'cab', 'tgz', 'dmg'].includes(ext)) return 'compressed';
+  if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'm4v', '3gp', 'wmv'].includes(ext)) return 'video';
+  if (['mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'wma', 'opus', 'alac'].includes(ext)) return 'music';
+  if (['exe', 'msi', 'apk', 'dmg', 'pkg', 'deb', 'rpm', 'bat', 'cmd'].includes(ext)) return 'programs';
+  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'epub', 'odt', 'csv', 'md'].includes(ext)) return 'documents';
   return 'other';
 }
 
-function getFileIcon(filename: string) {
-  const cat = getCategory(filename);
+function getFileIcon(filename: string, category?: string) {
+  const cat = getCategory(filename, category);
   switch (cat) {
     case 'compressed':
       return <FileArchive size={16} />;
@@ -87,6 +93,7 @@ export default function App() {
   const [connections, setConnections] = useState(8);
   const [defaultDir, setDefaultDir] = useState('');
   const [customFilename, setCustomFilename] = useState('');
+  const [detectedCategory, setDetectedCategory] = useState('General');
   const [isProbing, setIsProbing] = useState(false);
   const [probeInfo, setProbeInfo] = useState<ResourceInfo | null>(null);
   const [mediaInfo, setMediaInfo] = useState<MediaInfo | null>(null);
@@ -112,26 +119,64 @@ export default function App() {
       const isVid = await DownloadService.IsVideoURL(trimmed);
       if (isVid) {
         setIsVideoMode(true);
+        setDetectedCategory('Video');
         const info = await DownloadService.InspectVideo(trimmed);
         if (info) {
           setMediaInfo(info);
           if (info.formats && info.formats.length > 0) {
             setSelectedFormat(info.formats[0].formatId);
           }
-          setCustomFilename(initialFilename || `${info.title}.mp4`);
+          const fname = initialFilename || `${info.title}.mp4`;
+          setCustomFilename(fname);
+          const vidDir = await DownloadService.GetCategoryDir('Video');
+          setDefaultDir(vidDir);
         }
       } else {
         setIsVideoMode(false);
         const info = await DownloadService.ProbeURL(trimmed);
         if (info) {
           setProbeInfo(info);
-          setCustomFilename(initialFilename || info.Filename || 'download.bin');
+          const fname = initialFilename || info.Filename || 'download.bin';
+          setCustomFilename(fname);
+          const cat = await DownloadService.GetCategory(fname);
+          setDetectedCategory(cat);
+          const catDir = await DownloadService.GetCategoryDir(cat);
+          setDefaultDir(catDir);
         }
       }
     } catch (err: any) {
       setProbeError(err?.message || 'Failed to inspect URL');
     } finally {
       setIsProbing(false);
+    }
+  };
+
+  const handleFormatChange = async (fmtId: string) => {
+    setSelectedFormat(fmtId);
+    if (fmtId.includes('audio')) {
+      setDetectedCategory('Music');
+      const dir = await DownloadService.GetCategoryDir('Music');
+      setDefaultDir(dir);
+      if (customFilename.endsWith('.mp4')) {
+        setCustomFilename(customFilename.replace(/\.mp4$/, '.mp3'));
+      }
+    } else {
+      setDetectedCategory('Video');
+      const dir = await DownloadService.GetCategoryDir('Video');
+      setDefaultDir(dir);
+      if (customFilename.endsWith('.mp3')) {
+        setCustomFilename(customFilename.replace(/\.mp3$/, '.mp4'));
+      }
+    }
+  };
+
+  const handleFilenameChange = async (newName: string) => {
+    setCustomFilename(newName);
+    if (!isVideoMode) {
+      const cat = await DownloadService.GetCategory(newName);
+      setDetectedCategory(cat);
+      const dir = await DownloadService.GetCategoryDir(cat);
+      setDefaultDir(dir);
     }
   };
 
@@ -228,7 +273,7 @@ export default function App() {
     };
 
     downloads.forEach((d) => {
-      const cat = getCategory(d.filename);
+      const cat = getCategory(d.filename, d.category);
       if (res[cat] !== undefined) res[cat]++;
       if (d.status === DownloadStatus.StatusDownloading) res.downloading++;
       if (d.status === DownloadStatus.StatusCompleted) res.completed++;
@@ -242,7 +287,7 @@ export default function App() {
   // Filtered downloads
   const filteredDownloads = useMemo(() => {
     return downloads.filter((d) => {
-      if (activeCategory !== 'all' && getCategory(d.filename) !== activeCategory) {
+      if (activeCategory !== 'all' && getCategory(d.filename, d.category) !== activeCategory) {
         return false;
       }
       if (activeStatus !== 'all' && d.status !== activeStatus) {
@@ -263,14 +308,28 @@ export default function App() {
   const handleResume = (id?: string) => {
     const targetId = id || selectedId;
     if (targetId) {
-      DownloadService.ResumeDownload(targetId);
+      setDownloads((prev) =>
+        prev.map((d) =>
+          d.id === targetId ? { ...d, status: DownloadStatus.StatusDownloading, error: '' } : d
+        )
+      );
+      DownloadService.ResumeDownload(targetId).catch((err) => {
+        console.error('Failed to resume download:', err);
+      });
     }
   };
 
   const handlePause = (id?: string) => {
     const targetId = id || selectedId;
     if (targetId) {
-      DownloadService.PauseDownload(targetId);
+      setDownloads((prev) =>
+        prev.map((d) =>
+          d.id === targetId ? { ...d, status: DownloadStatus.StatusPaused, speed: 0, eta: 'Paused' } : d
+        )
+      );
+      DownloadService.PauseDownload(targetId).catch((err) => {
+        console.error('Failed to pause download:', err);
+      });
     }
   };
 
@@ -364,7 +423,7 @@ export default function App() {
           <button
             className="tool-btn success"
             onClick={() => handleResume()}
-            disabled={!selectedItem || selectedItem.status !== DownloadStatus.StatusPaused}
+            disabled={!selectedItem || (selectedItem.status !== DownloadStatus.StatusPaused && selectedItem.status !== DownloadStatus.StatusError)}
             title="Resume selected download"
           >
             <Play size={20} className="tool-btn-icon" />
@@ -495,7 +554,19 @@ export default function App() {
                   <FileArchive size={15} />
                   <span>Compressed</span>
                 </div>
-                <span className="sidebar-badge">{counts.compressed}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    className="sidebar-folder-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      DownloadService.OpenCategoryFolder('Compressed');
+                    }}
+                    title="Open Compressed Downloads folder in File Explorer"
+                  >
+                    <FolderOpen size={12} />
+                  </button>
+                  <span className="sidebar-badge">{counts.compressed}</span>
+                </div>
               </li>
               <li
                 className={`sidebar-item ${activeCategory === 'documents' ? 'active' : ''}`}
@@ -508,7 +579,19 @@ export default function App() {
                   <FileText size={15} />
                   <span>Documents</span>
                 </div>
-                <span className="sidebar-badge">{counts.documents}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    className="sidebar-folder-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      DownloadService.OpenCategoryFolder('Documents');
+                    }}
+                    title="Open Documents Downloads folder in File Explorer"
+                  >
+                    <FolderOpen size={12} />
+                  </button>
+                  <span className="sidebar-badge">{counts.documents}</span>
+                </div>
               </li>
               <li
                 className={`sidebar-item ${activeCategory === 'music' ? 'active' : ''}`}
@@ -521,7 +604,19 @@ export default function App() {
                   <FileAudio size={15} />
                   <span>Music</span>
                 </div>
-                <span className="sidebar-badge">{counts.music}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    className="sidebar-folder-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      DownloadService.OpenCategoryFolder('Music');
+                    }}
+                    title="Open Music Downloads folder in File Explorer"
+                  >
+                    <FolderOpen size={12} />
+                  </button>
+                  <span className="sidebar-badge">{counts.music}</span>
+                </div>
               </li>
               <li
                 className={`sidebar-item ${activeCategory === 'programs' ? 'active' : ''}`}
@@ -534,7 +629,19 @@ export default function App() {
                   <FileBox size={15} />
                   <span>Programs</span>
                 </div>
-                <span className="sidebar-badge">{counts.programs}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    className="sidebar-folder-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      DownloadService.OpenCategoryFolder('Programs');
+                    }}
+                    title="Open Programs Downloads folder in File Explorer"
+                  >
+                    <FolderOpen size={12} />
+                  </button>
+                  <span className="sidebar-badge">{counts.programs}</span>
+                </div>
               </li>
               <li
                 className={`sidebar-item ${activeCategory === 'video' ? 'active' : ''}`}
@@ -547,7 +654,19 @@ export default function App() {
                   <FileVideo size={15} />
                   <span>Video</span>
                 </div>
-                <span className="sidebar-badge">{counts.video}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    className="sidebar-folder-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      DownloadService.OpenCategoryFolder('Video');
+                    }}
+                    title="Open Video Downloads folder in File Explorer"
+                  >
+                    <FolderOpen size={12} />
+                  </button>
+                  <span className="sidebar-badge">{counts.video}</span>
+                </div>
               </li>
             </ul>
           </div>
@@ -633,11 +752,20 @@ export default function App() {
                         key={item.id}
                         className={isSelected ? 'selected' : ''}
                         onClick={() => setSelectedId(item.id)}
-                        onDoubleClick={() => setIsInspectorOpen(true)}
+                        onDoubleClick={() => {
+                          if (item.status === DownloadStatus.StatusCompleted) {
+                            handleOpenFile(item.destPath);
+                          } else if (item.status === DownloadStatus.StatusDownloading) {
+                            handlePause(item.id);
+                          } else {
+                            handleResume(item.id);
+                          }
+                        }}
+                        title="Double-click to Pause/Resume or Open completed file"
                       >
                         <td>
                           <div className="file-col">
-                            <div className="file-col-icon">{getFileIcon(item.filename)}</div>
+                            <div className="file-col-icon">{getFileIcon(item.filename, item.category)}</div>
                             <span className="file-col-name" title={item.filename}>
                               {item.filename}
                             </span>
@@ -647,9 +775,35 @@ export default function App() {
                           {item.totalSize > 0 ? formatBytes(item.totalSize) : 'Streaming'}
                         </td>
                         <td>
-                          <span className={`status-pill status-${item.status}`}>
-                            {item.status}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className={`status-pill status-${item.status}`}>
+                              {item.status}
+                            </span>
+                            {isDownloading && (
+                              <button
+                                className="sidebar-folder-icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePause(item.id);
+                                }}
+                                title="Stop download"
+                              >
+                                <Pause size={12} color="#fbbf24" />
+                              </button>
+                            )}
+                            {(isPaused || isError) && (
+                              <button
+                                className="sidebar-folder-icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleResume(item.id);
+                                }}
+                                title="Resume download"
+                              >
+                                <Play size={12} color="#34d399" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <div className="table-progress-wrap">
@@ -673,7 +827,11 @@ export default function App() {
                           {isDownloading && item.eta ? item.eta : '--'}
                         </td>
                         <td className="font-mono-val">
-                          {item.segments && item.segments.length > 0 ? `${item.segments.length} Conns` : '1 Conn'}
+                          {item.connections > 0
+                            ? `${item.connections} Threads`
+                            : item.segments && item.segments.length > 0
+                            ? `${item.segments.length} Threads`
+                            : '1 Thread'}
                         </td>
                       </tr>
                     );
@@ -913,7 +1071,7 @@ export default function App() {
                     <select
                       className="format-select"
                       value={selectedFormat}
-                      onChange={(e) => setSelectedFormat(e.target.value)}
+                      onChange={(e) => handleFormatChange(e.target.value)}
                     >
                       {mediaInfo.formats?.map((fmt) => (
                         <option key={fmt.formatId} value={fmt.formatId}>
@@ -943,10 +1101,18 @@ export default function App() {
                   </span>
                 </div>
                 <div className="probe-row">
+                  <span className="probe-label">Category:</span>
+                  <span className="probe-val">
+                    <span className="badge-tag">{detectedCategory}</span>
+                  </span>
+                </div>
+                <div className="probe-row">
                   <span className="probe-label">Range Acceleration:</span>
                   <span className="probe-val">
                     {probeInfo.AcceptRanges ? (
-                      <span className="badge-tag">Multi-Thread Supported</span>
+                      <span className="badge-tag" style={{ color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                        Multi-Thread Supported
+                      </span>
                     ) : (
                       'Single Stream'
                     )}
@@ -962,7 +1128,7 @@ export default function App() {
                 className="form-input"
                 placeholder="Filename on disk"
                 value={customFilename}
-                onChange={(e) => setCustomFilename(e.target.value)}
+                onChange={(e) => handleFilenameChange(e.target.value)}
               />
             </div>
 
@@ -991,7 +1157,10 @@ export default function App() {
             )}
 
             <div className="form-group">
-              <label>Save Location</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ margin: 0 }}>Save Location</label>
+                <span className="badge-tag">{detectedCategory} Folder</span>
+              </div>
               <input
                 type="text"
                 className="form-input"

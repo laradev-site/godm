@@ -68,6 +68,10 @@ func downloadSegmentStream(
 	if !ok || seg.Done {
 		return nil
 	}
+	if seg.End >= 0 && seg.Current > seg.End {
+		state.UpdateSegment(segIndex, seg.Current, true)
+		return nil
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.URL, nil)
 	if err != nil {
@@ -99,7 +103,11 @@ func downloadSegmentStream(
 		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
-	buf := make([]byte, cfg.BufferSize)
+	bufSize := cfg.BufferSize
+	if bufSize <= 0 {
+		bufSize = config.DefaultBufferSize
+	}
+	buf := make([]byte, bufSize)
 	curr := seg.Current
 
 	for {
@@ -111,15 +119,24 @@ func downloadSegmentStream(
 
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			// Direct random-access write to the designated byte offset
-			if _, writeErr := writer.WriteAt(buf[:n], curr); writeErr != nil {
-				return fmt.Errorf("failed to write to file at offset %d: %w", curr, writeErr)
+			toWrite := int64(n)
+			if seg.End >= 0 && curr+toWrite-1 > seg.End {
+				toWrite = seg.End - curr + 1
 			}
-			curr += int64(n)
+
+			if toWrite > 0 {
+				if _, writeErr := writer.WriteAt(buf[:toWrite], curr); writeErr != nil {
+					return fmt.Errorf("failed to write to file at offset %d: %w", curr, writeErr)
+				}
+				curr += toWrite
+			}
 
 			// Mark progress
 			isDone := seg.End >= 0 && curr > seg.End
 			state.UpdateSegment(segIndex, curr, isDone)
+			if isDone {
+				return nil
+			}
 		}
 
 		if readErr != nil {

@@ -268,6 +268,25 @@ html, body {
   font-weight: 600;
 }
 
+.sidebar-folder-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+  opacity: 0.6;
+}
+
+.sidebar-folder-icon:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  opacity: 1;
+}
+
 .sidebar-item-left {
   display: flex;
   align-items: center;

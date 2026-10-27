@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +35,16 @@ const (
 	StatusError       DownloadStatus = "error"
 )
 
+// IDM-style Categories
+const (
+	CategoryCompressed = "Compressed"
+	CategoryDocuments  = "Documents"
+	CategoryMusic      = "Music"
+	CategoryPrograms   = "Programs"
+	CategoryVideo      = "Video"
+	CategoryGeneral    = "General"
+)
+
 // DownloadItem represents a download task's state presented to the UI.
 type DownloadItem struct {
 	ID              string                 `json:"id"`
@@ -48,29 +61,38 @@ type DownloadItem struct {
 	Segments        []storage.SegmentState `json:"segments"`
 	Error           string                 `json:"error,omitempty"`
 	CreatedAt       time.Time              `json:"createdAt"`
+	IsVideo         bool                   `json:"isVideo"`
+	FormatID        string                 `json:"formatId,omitempty"`
+	Category        string                 `json:"category"`
 }
 
 type activeTask struct {
-	item    *DownloadItem
-	cancel  context.CancelFunc
-	state   *storage.TaskState
-	cfg     *config.Config
-	eng     *engine.Engine
-	running bool
+	item     *DownloadItem
+	cancel   context.CancelFunc
+	state    *storage.TaskState
+	cfg      *config.Config
+	running  bool
+	isVid    bool
+	formatID string
 }
 
 // DownloadService is registered as a Wails service to bind download management methods.
 type DownloadService struct {
-	app   *application.App
-	mu    sync.RWMutex
-	tasks map[string]*activeTask
+	app        *application.App
+	mu         sync.RWMutex
+	tasks      map[string]*activeTask
+	httpClient *http.Client
 }
 
-// NewDownloadService creates a new DownloadService.
+// NewDownloadService creates a new DownloadService with persistent history and connection pooling.
 func NewDownloadService() *DownloadService {
-	return &DownloadService{
-		tasks: make(map[string]*activeTask),
+	cfg := config.NewDefaultConfig()
+	s := &DownloadService{
+		tasks:      make(map[string]*activeTask),
+		httpClient: engine.NewHTTPClient(cfg),
 	}
+	s.loadHistory()
+	return s
 }
 
 // SetApp sets the Wails application reference for event emission.
@@ -91,6 +113,47 @@ func (s *DownloadService) GetDefaultDownloadDir() string {
 		return downloads
 	}
 	return home
+}
+
+// GetCategory determines the IDM-style category based on file extension.
+func (s *DownloadService) GetCategory(filename string) string {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), "."))
+	switch ext {
+	case "zip", "rar", "7z", "tar", "gz", "bz2", "iso", "xz", "cab", "tgz", "z", "dmg":
+		return CategoryCompressed
+	case "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "epub", "odt", "rtf", "csv", "md":
+		return CategoryDocuments
+	case "mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus", "alac", "aiff":
+		return CategoryMusic
+	case "exe", "msi", "apk", "bat", "cmd", "pkg", "deb", "rpm", "appx", "ps1":
+		return CategoryPrograms
+	case "mp4", "mkv", "avi", "mov", "webm", "flv", "m4v", "3gp", "wmv", "mpg", "mpeg", "ts":
+		return CategoryVideo
+	default:
+		return CategoryGeneral
+	}
+}
+
+// GetCategoryDir returns the absolute path to a category download folder, creating it if necessary.
+func (s *DownloadService) GetCategoryDir(category string) string {
+	if category == "" {
+		category = CategoryGeneral
+	}
+	base := s.GetDefaultDownloadDir()
+	catDir := filepath.Join(base, category)
+	_ = os.MkdirAll(catDir, 0755)
+	return catDir
+}
+
+// OpenCategoryFolder opens the designated category folder in the OS file explorer.
+func (s *DownloadService) OpenCategoryFolder(category string) error {
+	dir := s.GetCategoryDir(category)
+	if runtime.GOOS == "windows" {
+		return exec.Command("explorer", dir).Start()
+	} else if runtime.GOOS == "darwin" {
+		return exec.Command("open", dir).Start()
+	}
+	return exec.Command("xdg-open", dir).Start()
 }
 
 // ProbeURL inspects target URL capabilities (Content-Length, Accept-Ranges, filename).
@@ -115,10 +178,59 @@ func (s *DownloadService) InspectVideo(rawURL string) (*media.MediaInfo, error) 
 	return media.InspectMedia(ctx, rawURL)
 }
 
-// StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms.
+func makeVideoSegments(n int) []storage.SegmentState {
+	segs := make([]storage.SegmentState, n)
+	for i := 0; i < n; i++ {
+		segs[i] = storage.SegmentState{
+			Index:   i,
+			Start:   int64(i * 1000),
+			End:     int64((i + 1) * 1000),
+			Current: int64(i * 1000),
+			Done:    false,
+		}
+	}
+	return segs
+}
+
+func updateVideoSegments(segs []storage.SegmentState, pct float64) {
+	n := len(segs)
+	if n == 0 {
+		return
+	}
+	completed := int((pct / 100.0) * float64(n))
+	for i := 0; i < n; i++ {
+		if i < completed {
+			segs[i].Done = true
+			segs[i].Current = segs[i].End
+		} else if i == completed {
+			segs[i].Done = false
+			subPct := (pct - (float64(i) / float64(n) * 100.0)) / (100.0 / float64(n))
+			if subPct < 0 {
+				subPct = 0
+			}
+			if subPct > 1 {
+				subPct = 1
+			}
+			segs[i].Current = segs[i].Start + int64(subPct*float64(segs[i].End-segs[i].Start))
+		} else {
+			segs[i].Done = false
+			segs[i].Current = segs[i].Start
+		}
+	}
+}
+
+// StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms using 16 concurrent fragments.
 func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, outputDir string, customFilename string) (*DownloadItem, error) {
-	if outputDir == "" {
-		outputDir = s.GetDefaultDownloadDir()
+	category := CategoryVideo
+	if formatID == "bestaudio/best" {
+		category = CategoryMusic
+	}
+
+	defaultDir := s.GetDefaultDownloadDir()
+	if outputDir == "" || outputDir == defaultDir {
+		outputDir = s.GetCategoryDir(category)
+	} else {
+		_ = os.MkdirAll(outputDir, 0755)
 	}
 
 	ctxProbe, cancelProbe := context.WithTimeout(context.Background(), 30*time.Second)
@@ -129,6 +241,9 @@ func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, out
 	}
 
 	filename := info.Title + ".mp4"
+	if formatID == "bestaudio/best" {
+		filename = info.Title + ".mp3"
+	}
 	if customFilename != "" {
 		filename = customFilename
 	}
@@ -141,90 +256,108 @@ func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, out
 		Filename:    filename,
 		DestPath:    destPath,
 		Status:      StatusDownloading,
-		Connections: 1,
+		Connections: 16,
+		Segments:    makeVideoSegments(16),
 		CreatedAt:   time.Now(),
+		IsVideo:     true,
+		FormatID:    formatID,
+		Category:    category,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	task := &activeTask{
-		item:    item,
-		cancel:  cancel,
-		running: true,
+		item:     item,
+		cancel:   cancel,
+		running:  true,
+		isVid:    true,
+		formatID: formatID,
 	}
 
 	s.mu.Lock()
 	s.tasks[taskID] = task
+	s.saveHistoryLocked()
 	s.mu.Unlock()
 
-	go func() {
-		defer func() {
-			s.mu.Lock()
-			task.running = false
-			s.mu.Unlock()
-		}()
-
-		err := media.DownloadMedia(ctx, rawURL, formatID, outputDir, customFilename, func(p media.MediaProgress) {
-			s.mu.Lock()
-			item.Percent = p.Percent
-			item.Speed = p.Speed
-			item.ETA = p.ETA
-			item.DownloadedBytes = p.Downloaded
-			item.TotalSize = p.Total
-			itemCopy := *item
-			s.mu.Unlock()
-
-			if s.app != nil {
-				s.app.Event.Emit("download:progress", itemCopy)
-			}
-		})
-
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if ctx.Err() != nil {
-			item.Status = StatusPaused
-			if s.app != nil {
-				s.app.Event.Emit("download:status", *item)
-			}
-			return
-		}
-
-		if err != nil {
-			item.Status = StatusError
-			item.Error = err.Error()
-			if s.app != nil {
-				s.app.Event.Emit("download:status", *item)
-			}
-			return
-		}
-
-		item.Status = StatusCompleted
-		item.Percent = 100
-		item.Speed = 0
-		item.ETA = "00:00:00"
-		if s.app != nil {
-			s.app.Event.Emit("download:status", *item)
-		}
-	}()
-
+	go s.runVideoDownload(ctx, taskID, task)
 	return item, nil
 }
 
+func (s *DownloadService) runVideoDownload(ctx context.Context, id string, t *activeTask) {
+	defer func() {
+		s.mu.Lock()
+		t.running = false
+		s.saveHistoryLocked()
+		s.mu.Unlock()
+	}()
 
-// StartDownload initiates a download task in the background.
+	outputDir := filepath.Dir(t.item.DestPath)
+	filename := filepath.Base(t.item.DestPath)
+
+	err := media.DownloadMedia(ctx, t.item.URL, t.formatID, outputDir, filename, func(p media.MediaProgress) {
+		s.mu.Lock()
+		t.item.Percent = p.Percent
+		t.item.Speed = p.Speed
+		t.item.ETA = p.ETA
+		if p.Downloaded > 0 {
+			t.item.DownloadedBytes = p.Downloaded
+		}
+		if p.Total > 0 {
+			t.item.TotalSize = p.Total
+		}
+		updateVideoSegments(t.item.Segments, p.Percent)
+		itemCopy := *t.item
+		s.mu.Unlock()
+
+		if s.app != nil {
+			s.app.Event.Emit("download:progress", itemCopy)
+		}
+	})
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if ctx.Err() != nil {
+		t.item.Status = StatusPaused
+		t.item.Speed = 0
+		t.item.ETA = "Paused"
+		if s.app != nil {
+			s.app.Event.Emit("download:status", *t.item)
+		}
+		return
+	}
+
+	if err != nil {
+		t.item.Status = StatusError
+		t.item.Error = err.Error()
+		t.item.Speed = 0
+		if s.app != nil {
+			s.app.Event.Emit("download:status", *t.item)
+		}
+		return
+	}
+
+	t.item.Status = StatusCompleted
+	t.item.Percent = 100
+	t.item.Speed = 0
+	t.item.ETA = "00:00:00"
+	for i := range t.item.Segments {
+		t.item.Segments[i].Done = true
+		t.item.Segments[i].Current = t.item.Segments[i].End
+	}
+	if s.app != nil {
+		s.app.Event.Emit("download:status", *t.item)
+	}
+}
+
+// StartDownload initiates an accelerated multi-connection download task.
 func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir string, customFilename string) (*DownloadItem, error) {
 	if conns <= 0 {
 		conns = config.DefaultConnections
-	}
-	if outputDir == "" {
-		outputDir = s.GetDefaultDownloadDir()
 	}
 
 	cfg := config.NewDefaultConfig()
 	cfg.URL = rawURL
 	cfg.Connections = conns
-	cfg.OutputDir = outputDir
-	cfg.OutputFile = customFilename
 	cfg.Quiet = true
 
 	// Probe URL
@@ -239,7 +372,18 @@ func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir stri
 	if customFilename != "" {
 		filename = customFilename
 	}
+
+	category := s.GetCategory(filename)
+	defaultDir := s.GetDefaultDownloadDir()
+	if outputDir == "" || outputDir == defaultDir {
+		outputDir = s.GetCategoryDir(category)
+	} else {
+		_ = os.MkdirAll(outputDir, 0755)
+	}
+
 	destPath := filepath.Join(outputDir, filename)
+	cfg.OutputDir = outputDir
+	cfg.OutputFile = filename
 
 	taskID := fmt.Sprintf("dl_%d", time.Now().UnixNano())
 	item := &DownloadItem{
@@ -250,7 +394,9 @@ func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir stri
 		TotalSize:   info.ContentLength,
 		Status:      StatusDownloading,
 		Connections: conns,
+		Category:    category,
 		CreatedAt:   time.Now(),
+		IsVideo:     false,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -259,15 +405,15 @@ func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir stri
 		cancel:  cancel,
 		cfg:     cfg,
 		running: true,
+		isVid:   false,
 	}
 
 	s.mu.Lock()
 	s.tasks[taskID] = task
+	s.saveHistoryLocked()
 	s.mu.Unlock()
 
-	// Launch download worker goroutine
 	go s.runDownload(ctx, taskID, task, info)
-
 	return item, nil
 }
 
@@ -275,6 +421,7 @@ func (s *DownloadService) runDownload(ctx context.Context, id string, t *activeT
 	defer func() {
 		s.mu.Lock()
 		t.running = false
+		s.saveHistoryLocked()
 		s.mu.Unlock()
 	}()
 
@@ -316,13 +463,23 @@ func (s *DownloadService) runDownload(ctx context.Context, id string, t *activeT
 	}
 	defer writer.Close()
 
-	client := engine.NewEngine(t.cfg)
+	// Initial progress snapshot
+	s.mu.Lock()
+	t.item.TotalSize = info.ContentLength
+	t.item.DownloadedBytes = state.TotalDownloaded()
+	t.item.Segments = state.SegmentsSnapshot()
+	itemSnap := *t.item
+	s.mu.Unlock()
+	if s.app != nil {
+		s.app.Event.Emit("download:progress", itemSnap)
+	}
 
 	// Progress monitor loop
-	monitorDone := make(chan struct{})
+	monitorCtx, cancelMonitor := context.WithCancel(context.Background())
+	defer cancelMonitor()
+
 	go func() {
-		defer close(monitorDone)
-		ticker := time.NewTicker(250 * time.Millisecond)
+		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
 
 		var lastBytes int64 = state.TotalDownloaded()
@@ -331,12 +488,12 @@ func (s *DownloadService) runDownload(ctx context.Context, id string, t *activeT
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-monitorCtx.Done():
 				return
 			case now := <-ticker.C:
 				dl := state.TotalDownloaded()
 				elapsed := now.Sub(lastTime).Seconds()
-				if elapsed >= 0.25 {
+				if elapsed >= 0.2 {
 					delta := dl - lastBytes
 					if delta < 0 {
 						delta = 0
@@ -345,7 +502,7 @@ func (s *DownloadService) runDownload(ctx context.Context, id string, t *activeT
 					if smoothedSpeed == 0 {
 						smoothedSpeed = instant
 					} else {
-						smoothedSpeed = 0.7*smoothedSpeed + 0.3*instant
+						smoothedSpeed = 0.65*smoothedSpeed + 0.35*instant
 					}
 					lastBytes = dl
 					lastTime = now
@@ -386,15 +543,18 @@ func (s *DownloadService) runDownload(ctx context.Context, id string, t *activeT
 		}
 	}()
 
-	// Run engine
-	dlErr := client.Execute(ctx)
-	<-monitorDone
+	// Execute workers concurrently with shared state and writer
+	dlErr := engine.RunWorkers(ctx, t.cfg, s.httpClient, writer, state)
+	cancelMonitor()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if ctx.Err() != nil {
 		t.item.Status = StatusPaused
+		t.item.Speed = 0
+		t.item.ETA = "Paused"
+		_ = state.Save(destPath)
 		if s.app != nil {
 			s.app.Event.Emit("download:status", *t.item)
 		}
@@ -404,6 +564,8 @@ func (s *DownloadService) runDownload(ctx context.Context, id string, t *activeT
 	if dlErr != nil {
 		t.item.Status = StatusError
 		t.item.Error = dlErr.Error()
+		t.item.Speed = 0
+		_ = state.Save(destPath)
 		if s.app != nil {
 			s.app.Event.Emit("download:status", *t.item)
 		}
@@ -415,6 +577,7 @@ func (s *DownloadService) runDownload(ctx context.Context, id string, t *activeT
 	t.item.DownloadedBytes = t.item.TotalSize
 	t.item.Speed = 0
 	t.item.ETA = "00:00:00"
+	_ = storage.RemoveState(destPath)
 	if s.app != nil {
 		s.app.Event.Emit("download:status", *t.item)
 	}
@@ -426,13 +589,15 @@ func (s *DownloadService) setError(id, errMsg string) {
 	if task, exists := s.tasks[id]; exists {
 		task.item.Status = StatusError
 		task.item.Error = errMsg
+		task.item.Speed = 0
+		s.saveHistoryLocked()
 		if s.app != nil {
 			s.app.Event.Emit("download:status", *task.item)
 		}
 	}
 }
 
-// PauseDownload pauses an active download.
+// PauseDownload pauses an active download cleanly and immediately.
 func (s *DownloadService) PauseDownload(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -445,11 +610,22 @@ func (s *DownloadService) PauseDownload(id string) error {
 	if task.cancel != nil {
 		task.cancel()
 	}
+	task.running = false
 	task.item.Status = StatusPaused
+	task.item.Speed = 0
+	task.item.ETA = "Paused"
+	if task.state != nil {
+		_ = task.state.Save(task.item.DestPath)
+	}
+	s.saveHistoryLocked()
+
+	if s.app != nil {
+		s.app.Event.Emit("download:status", *task.item)
+	}
 	return nil
 }
 
-// ResumeDownload resumes a paused download.
+// ResumeDownload resumes a paused download seamlessly.
 func (s *DownloadService) ResumeDownload(id string) error {
 	s.mu.Lock()
 	task, exists := s.tasks[id]
@@ -468,7 +644,26 @@ func (s *DownloadService) ResumeDownload(id string) error {
 	task.running = true
 	task.item.Status = StatusDownloading
 	task.item.Error = ""
+	s.saveHistoryLocked()
+
+	if s.app != nil {
+		s.app.Event.Emit("download:status", *task.item)
+	}
 	s.mu.Unlock()
+
+	if task.isVid {
+		go s.runVideoDownload(ctx, id, task)
+		return nil
+	}
+
+	if task.cfg == nil {
+		cfg := config.NewDefaultConfig()
+		cfg.URL = task.item.URL
+		cfg.Connections = task.item.Connections
+		cfg.OutputDir = filepath.Dir(task.item.DestPath)
+		cfg.OutputFile = task.item.Filename
+		task.cfg = cfg
+	}
 
 	info := &protocol.ResourceInfo{
 		URL:           task.item.URL,
@@ -501,9 +696,19 @@ func (s *DownloadService) StopAll() {
 	for _, task := range s.tasks {
 		if task.running && task.cancel != nil {
 			task.cancel()
+			task.running = false
 			task.item.Status = StatusPaused
+			task.item.Speed = 0
+			task.item.ETA = "Paused"
+			if task.state != nil {
+				_ = task.state.Save(task.item.DestPath)
+			}
+			if s.app != nil {
+				s.app.Event.Emit("download:status", *task.item)
+			}
 		}
 	}
+	s.saveHistoryLocked()
 }
 
 // ResumeAll resumes all paused downloads.
@@ -536,6 +741,7 @@ func (s *DownloadService) DeleteDownload(id string, deleteFile bool) error {
 	}
 	destPath := task.item.DestPath
 	delete(s.tasks, id)
+	s.saveHistoryLocked()
 	s.mu.Unlock()
 
 	// Clean up state file
@@ -565,7 +771,6 @@ func (s *DownloadService) OpenFile(path string) error {
 func (s *DownloadService) OpenFolder(path string) error {
 	dir := filepath.Dir(path)
 	if _, err := os.Stat(path); err == nil {
-		// If path is a file, show it selected if on Windows
 		if runtime.GOOS == "windows" {
 			return exec.Command("explorer", "/select,", path).Start()
 		}
@@ -610,4 +815,64 @@ func (s *DownloadService) OpenExtensionFolder() error {
 		return exec.Command("open", p).Start()
 	}
 	return exec.Command("xdg-open", p).Start()
+}
+
+// Persistent History
+func (s *DownloadService) getHistoryPath() string {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		configDir = "."
+	}
+	dir := filepath.Join(configDir, "godm")
+	_ = os.MkdirAll(dir, 0755)
+	return filepath.Join(dir, "tasks.json")
+}
+
+func (s *DownloadService) saveHistoryLocked() {
+	p := s.getHistoryPath()
+	items := make([]*DownloadItem, 0, len(s.tasks))
+	for _, t := range s.tasks {
+		items = append(items, t.item)
+	}
+	data, err := json.MarshalIndent(items, "", "  ")
+	if err == nil {
+		_ = os.WriteFile(p, data, 0644)
+	}
+}
+
+func (s *DownloadService) loadHistory() {
+	p := s.getHistoryPath()
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return
+	}
+	var items []*DownloadItem
+	if err := json.Unmarshal(data, &items); err != nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, item := range items {
+		if item == nil || item.ID == "" {
+			continue
+		}
+		if item.Status == StatusDownloading {
+			item.Status = StatusPaused
+			item.Speed = 0
+			item.ETA = "Paused"
+		}
+		cfg := config.NewDefaultConfig()
+		cfg.URL = item.URL
+		cfg.Connections = item.Connections
+		cfg.OutputDir = filepath.Dir(item.DestPath)
+		cfg.OutputFile = item.Filename
+
+		s.tasks[item.ID] = &activeTask{
+			item:     item,
+			cfg:      cfg,
+			isVid:    item.IsVideo,
+			formatID: item.FormatID,
+			running:  false,
+		}
+	}
 }

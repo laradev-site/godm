@@ -6,12 +6,12 @@ import (
 
 const (
 	DefaultConnections  = 8
-	DefaultBufferSize   = 64 * 1024       // 64 KB buffer per worker
-	DefaultMinChunkSize = 1024 * 1024     // 1 MB min chunk to split
+	DefaultBufferSize   = 256 * 1024      // 256 KB buffer per worker for maximum throughput
+	DefaultMinChunkSize = 256 * 1024      // 256 KB min chunk to split
 	DefaultTimeout      = 30 * time.Second
-	DefaultUserAgent    = "godm/1.0 (Compatible; Go-Download-Manager; Windows NT 10.0; Win64; x64)"
-	DefaultMaxRetries   = 3
-	DefaultRetryDelay   = 2 * time.Second
+	DefaultUserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 godm/1.0"
+	DefaultMaxRetries   = 5
+	DefaultRetryDelay   = 1 * time.Second
 )
 
 // Config holds runtime options for downloading.

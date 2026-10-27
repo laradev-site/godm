@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"path/filepath"
 	"sync"
@@ -22,26 +23,101 @@ type Engine struct {
 	client *http.Client
 }
 
-// NewEngine creates a new Engine instance with the given configuration.
-func NewEngine(cfg *config.Config) *Engine {
+// NewHTTPClient creates an optimized HTTP client with aggressive connection pooling and socket tuning.
+func NewHTTPClient(cfg *config.Config) *http.Client {
 	transport := &http.Transport{
-		MaxIdleConns:        cfg.Connections * 2,
-		MaxIdleConnsPerHost: cfg.Connections * 2,
-		IdleConnTimeout:     90 * time.Second,
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   15 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   100,
+		MaxConnsPerHost:       100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		WriteBufferSize:       256 * 1024,
+		ReadBufferSize:        256 * 1024,
 	}
 
-	client := &http.Client{
+	return &http.Client{
 		Transport: transport,
 		Timeout:   cfg.Timeout,
 	}
+}
 
+// NewEngine creates a new Engine instance with the given configuration.
+func NewEngine(cfg *config.Config) *Engine {
 	return &Engine{
 		cfg:    cfg,
-		client: client,
+		client: NewHTTPClient(cfg),
 	}
 }
 
-// Execute performs the download or resumes an existing one.
+// RunWorkers concurrently downloads all unfinished segments into writer using the shared TaskState.
+func RunWorkers(
+	ctx context.Context,
+	cfg *config.Config,
+	client *http.Client,
+	writer *storage.FileWriter,
+	state *storage.TaskState,
+) error {
+	destPath := writer.Path()
+
+	workerCtx, cancelWorkers := context.WithCancel(ctx)
+	defer cancelWorkers()
+
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(state.Segments))
+
+	// Spawn segment download workers
+	for i := range state.Segments {
+		seg, ok := state.GetSegment(i)
+		if !ok || seg.Done {
+			continue
+		}
+		wg.Add(1)
+		go func(segIdx int) {
+			defer wg.Done()
+			if err := downloadWorker(workerCtx, cfg, client, writer, state, segIdx); err != nil {
+				if !errors.Is(err, context.Canceled) {
+					errChan <- err
+				}
+			}
+		}(i)
+	}
+
+	// Wait for workers to finish
+	wg.Wait()
+
+	// Check if any error occurred
+	close(errChan)
+	var firstErr error
+	for err := range errChan {
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	// Handle interruption or worker error
+	if ctx.Err() != nil {
+		_ = state.Save(destPath)
+		return ctx.Err()
+	}
+	if firstErr != nil {
+		_ = state.Save(destPath)
+		return firstErr
+	}
+
+	_ = writer.Sync()
+	return nil
+}
+
+// Execute performs the download or resumes an existing one (used primarily by the CLI runner).
 func (e *Engine) Execute(ctx context.Context) error {
 	// Step 1: Probe target resource
 	if !e.cfg.Quiet {
@@ -122,11 +198,9 @@ func (e *Engine) Execute(ctx context.Context) error {
 	// Step 5: Start progress tracker & state periodic flusher
 	tracker := ui.NewProgressTracker(info.ContentLength, state.TotalDownloaded(), e.cfg.Quiet)
 
-	// Context for coordinating workers and flusher
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
 
-	// Flusher goroutine: periodically saves state so sudden kill or Ctrl+C keeps download safe
 	flusherDone := make(chan struct{})
 	go func() {
 		defer close(flusherDone)
@@ -148,52 +222,18 @@ func (e *Engine) Execute(ctx context.Context) error {
 		}
 	}()
 
-	// Step 6: Spawn segment download workers
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(state.Segments))
-
-	for i := range state.Segments {
-		if state.Segments[i].Done {
-			continue
-		}
-		wg.Add(1)
-		go func(segIdx int) {
-			defer wg.Done()
-			if err := downloadWorker(workerCtx, e.cfg, e.client, writer, state, segIdx); err != nil {
-				if !errors.Is(err, context.Canceled) {
-					errChan <- err
-				}
-			}
-		}(i)
-	}
-
-	// Wait for workers to finish
-	wg.Wait()
+	dlErr := RunWorkers(workerCtx, e.cfg, e.client, writer, state)
 	cancelWorkers()
 	<-flusherDone
 
-	// Check if any error occurred
-	close(errChan)
-	var firstErr error
-	for err := range errChan {
-		if firstErr == nil {
-			firstErr = err
-		}
-	}
-
-	// Handle interruption or worker error
 	if ctx.Err() != nil {
 		_ = state.Save(destPath)
 		return fmt.Errorf("\ndownload paused / interrupted (resumable state saved)")
 	}
-	if firstErr != nil {
+	if dlErr != nil {
 		_ = state.Save(destPath)
-		return fmt.Errorf("\ndownload error: %w", firstErr)
+		return fmt.Errorf("\ndownload error: %w", dlErr)
 	}
-
-	// Step 7: Finalize
-	_ = writer.Sync()
-	_ = writer.Close()
 
 	if state.IsComplete() {
 		tracker.Finish(state.TotalDownloaded())
