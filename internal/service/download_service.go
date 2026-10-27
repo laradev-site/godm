@@ -493,6 +493,74 @@ func (s *DownloadService) ListDownloads() []*DownloadItem {
 	return result
 }
 
+// StopAll pauses all active downloads.
+func (s *DownloadService) StopAll() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, task := range s.tasks {
+		if task.running && task.cancel != nil {
+			task.cancel()
+			task.item.Status = StatusPaused
+		}
+	}
+}
+
+// ResumeAll resumes all paused downloads.
+func (s *DownloadService) ResumeAll() {
+	s.mu.RLock()
+	ids := make([]string, 0, len(s.tasks))
+	for id, t := range s.tasks {
+		if t.item.Status == StatusPaused {
+			ids = append(ids, id)
+		}
+	}
+	s.mu.RUnlock()
+
+	for _, id := range ids {
+		_ = s.ResumeDownload(id)
+	}
+}
+
+// DeleteDownload cancels a task, cleans up state, and optionally removes the downloaded file.
+func (s *DownloadService) DeleteDownload(id string, deleteFile bool) error {
+	s.mu.Lock()
+	task, exists := s.tasks[id]
+	if !exists {
+		s.mu.Unlock()
+		return errors.New("task not found")
+	}
+
+	if task.cancel != nil {
+		task.cancel()
+	}
+	destPath := task.item.DestPath
+	delete(s.tasks, id)
+	s.mu.Unlock()
+
+	// Clean up state file
+	_ = storage.RemoveState(destPath)
+
+	if deleteFile && destPath != "" {
+		_ = os.Remove(destPath)
+	}
+
+	if s.app != nil {
+		s.app.Event.Emit("download:deleted", id)
+	}
+	return nil
+}
+
+// OpenFile opens the downloaded file with the system default application.
+func (s *DownloadService) OpenFile(path string) error {
+	if runtime.GOOS == "windows" {
+		return exec.Command("cmd", "/c", "start", "", path).Start()
+	} else if runtime.GOOS == "darwin" {
+		return exec.Command("open", path).Start()
+	}
+	return exec.Command("xdg-open", path).Start()
+}
+
 // OpenFolder opens the operating system file explorer at the specified file or folder.
 func (s *DownloadService) OpenFolder(path string) error {
 	dir := filepath.Dir(path)

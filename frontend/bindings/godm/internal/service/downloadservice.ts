@@ -25,6 +25,13 @@ import * as protocol$0 from "../protocol/models.js";
 import * as $models from "./models.js";
 
 /**
+ * DeleteDownload cancels a task, cleans up state, and optionally removes the downloaded file.
+ */
+export function DeleteDownload(id: string, deleteFile: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3757600790, id, deleteFile);
+}
+
+/**
  * GetDefaultDownloadDir returns the user's standard Downloads folder.
  */
 export function GetDefaultDownloadDir(): $CancellablePromise<string> {
@@ -53,6 +60,13 @@ export function ListDownloads(): $CancellablePromise<($models.DownloadItem | nul
 }
 
 /**
+ * OpenFile opens the downloaded file with the system default application.
+ */
+export function OpenFile(path: string): $CancellablePromise<void> {
+    return $Call.ByID(2901059923, path);
+}
+
+/**
  * OpenFolder opens the operating system file explorer at the specified file or folder.
  */
 export function OpenFolder(path: string): $CancellablePromise<void> {
@@ -71,6 +85,13 @@ export function PauseDownload(id: string): $CancellablePromise<void> {
  */
 export function ProbeURL(rawURL: string): $CancellablePromise<protocol$0.ResourceInfo | null> {
     return $Call.ByID(1756987094, rawURL);
+}
+
+/**
+ * ResumeAll resumes all paused downloads.
+ */
+export function ResumeAll(): $CancellablePromise<void> {
+    return $Call.ByID(410889821);
 }
 
 /**
@@ -99,4 +120,11 @@ export function StartDownload(rawURL: string, conns: number, outputDir: string, 
  */
 export function StartVideoDownload(rawURL: string, formatID: string, outputDir: string, customFilename: string): $CancellablePromise<$models.DownloadItem | null> {
     return $Call.ByID(851512446, rawURL, formatID, outputDir, customFilename);
+}
+
+/**
+ * StopAll pauses all active downloads.
+ */
+export function StopAll(): $CancellablePromise<void> {
+    return $Call.ByID(765998656);
 }
