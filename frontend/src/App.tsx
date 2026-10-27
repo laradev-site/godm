@@ -133,9 +133,22 @@ export default function App() {
       });
     });
 
+    // Extension trigger: opens modal with URL prefilled
+    const unbindExtension = Events.On('extension:new-download', (event: any) => {
+      const data = event.data;
+      if (data && data.url) {
+        setUrl(data.url);
+        setIsModalOpen(true);
+        if (data.filename) {
+          setCustomFilename(data.filename);
+        }
+      }
+    });
+
     return () => {
       unbindProgress();
       unbindStatus();
+      unbindExtension();
     };
   }, []);
 

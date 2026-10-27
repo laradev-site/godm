@@ -33,3 +33,8 @@ build-desktop: frontend-build
 # Full build (both Desktop and CLI)
 build: frontend-build build-desktop build-cli
 	@echo "Build complete: bin/godm.exe & bin/godm-cli.exe"
+
+# Package extension zip
+extension-zip:
+	powershell Compress-Archive -Path "extension/*" -DestinationPath "bin/godm-extension.zip" -Force
+

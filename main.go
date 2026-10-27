@@ -8,6 +8,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"godm/internal/server"
 	"godm/internal/service"
 )
 
@@ -37,6 +38,12 @@ func main() {
 		},
 	})
 	downloadSvc.SetApp(app)
+
+	// Start local extension RPC bridge on 127.0.0.1:9246
+	rpcSrv, err := server.StartRPCServer(server.DefaultRPCPort, app, downloadSvc)
+	if err == nil {
+		defer rpcSrv.Close()
+	}
 
 	// Create main window
 	mainWindow := app.Window.NewWithOptions(application.WebviewWindowOptions{

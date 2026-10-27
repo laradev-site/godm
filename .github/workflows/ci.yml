@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, dev]
+    paths-ignore: ['**.md', 'docs/**']
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  WAILS_VERSION: v3.0.0-beta.26
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Go Vet & Test
+        run: |
+          go vet ./...
+          go test -v ./...
+
+      - name: Verify Frontend Build
+        working-directory: frontend
+        run: pnpm run build

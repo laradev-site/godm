@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-card">
+    <header class="popup-header">
+      <div class="brand">
+        <div class="logo">⚡</div>
+        <div class="brand-text">
+          <h1>godm</h1>
+          <span>Download Integration</span>
+        </div>
+      </div>
+      <div id="status-pill" class="status-pill offline">
+        <span class="status-dot"></span>
+        <span id="status-text">Disconnected</span>
+      </div>
+    </header>
+
+    <div class="quick-download">
+      <input type="text" id="url-input" placeholder="Paste download URL or video link..." />
+      <button id="send-btn" class="btn-primary">Download</button>
+    </div>
+    <div id="msg" class="msg"></div>
+
+    <div class="settings-group">
+      <label class="setting-toggle">
+        <span>Capture browser file downloads</span>
+        <input type="checkbox" id="toggle-intercept" />
+      </label>
+      <label class="setting-toggle">
+        <span>Show floating button on videos</span>
+        <input type="checkbox" id="toggle-widget" />
+      </label>
+    </div>
+
+    <footer class="popup-footer">
+      <span>godm Desktop Accelerator</span>
+      <span class="version">v0.1.0</span>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

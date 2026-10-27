@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - master
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (e.g. v0.1.0)'
+        required: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  WAILS_VERSION: v3.0.0-beta.26
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Version
+        id: ver
+        run: |
+          base=$(tr -d '\r\n' < version.txt)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.tag_name }}" ]]; then
+            tag="${{ github.event.inputs.tag_name }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+          else
+            tag="v${base}.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$base" >> "$GITHUB_OUTPUT"
+          echo "Building godm release $tag"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Install Wails v3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Tests
+        run: |
+          go test -v ./...
+
+      - name: Build Application
+        run: |
+          # Build frontend assets
+          (cd frontend && pnpm run build)
+          
+          # Build Wails GUI executable
+          wails3 build
+          
+          # Build Standalone CLI executable
+          go build -trimpath -ldflags="-w -s" -o bin/godm-cli.exe ./cmd/godm
+
+      - name: Package Release Assets
+        id: pkg
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.ver.outputs.tag }}"
+          $zipName = "godm-$tag-windows-amd64.zip"
+          
+          # Create release package directory
+          New-Item -ItemType Directory -Path "release_staging" -Force | Out-Null
+          Copy-Item "bin/godm.exe" "release_staging/"
+          Copy-Item "bin/godm-cli.exe" "release_staging/"
+          Copy-Item "extension" "release_staging/extension" -Recurse
+          Copy-Item "README.md" "release_staging/"
+          Copy-Item "LICENSE" "release_staging/"
+          
+          # Compress to zip
+          Compress-Archive -Path "release_staging/*" -DestinationPath $zipName -Force
+          echo "zip_path=$zipName" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: godm ${{ steps.ver.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.ver.outputs.tag, '-dev') || contains(steps.ver.outputs.tag, '-alpha') }}
+          files: |
+            bin/godm.exe
+            bin/godm-cli.exe
+            ${{ steps.pkg.outputs.zip_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
