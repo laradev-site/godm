@@ -1,0 +1,35 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/godm
+
+# Go build & test
+*.test
+*.out
+*.prof
+
+# Node & Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.pnpm-store/
+.pnpm-debug.log*
+
+# Wails
+frontend/bindings/github.com/
+frontend/bindings/log/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Task & Download test state files
+*.godm
+*.tmp
