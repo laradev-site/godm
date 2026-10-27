@@ -32,6 +32,7 @@ import * as DownloadService from '../bindings/godm/internal/service/downloadserv
 import { DownloadItem, DownloadStatus } from '../bindings/godm/internal/service/models';
 import { ResourceInfo } from '../bindings/godm/internal/protocol/models';
 import { MediaInfo } from '../bindings/godm/internal/media/models';
+import { useI18n, LANGUAGES } from './i18n';
 import './app.css';
 
 function formatBytes(bytes: number): string {
@@ -80,6 +81,16 @@ function getFileIcon(filename: string, category?: string) {
 }
 
 export default function App() {
+  const { language, setLanguage, t, format } = useI18n();
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isLangMenuOpen) return;
+    const handleClickOutside = () => setIsLangMenuOpen(false);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, [isLangMenuOpen]);
+
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<CategoryType>('all');
@@ -423,7 +434,7 @@ export default function App() {
             title="Add new download URL"
           >
             <Plus size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Add URL</span>
+            <span className="tool-btn-label">{t.addUrl}</span>
           </button>
 
           <button
@@ -433,7 +444,7 @@ export default function App() {
             title="Resume selected download"
           >
             <Play size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Resume</span>
+            <span className="tool-btn-label">{t.resume}</span>
           </button>
 
           <button
@@ -443,7 +454,7 @@ export default function App() {
             title="Pause selected download"
           >
             <Pause size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Stop</span>
+            <span className="tool-btn-label">{t.stop}</span>
           </button>
 
           <button
@@ -452,7 +463,7 @@ export default function App() {
             title="Stop all active downloads"
           >
             <Square size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Stop All</span>
+            <span className="tool-btn-label">{t.stopAll}</span>
           </button>
 
           <button
@@ -462,7 +473,7 @@ export default function App() {
             title="Delete selected download from list"
           >
             <Trash2 size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Delete</span>
+            <span className="tool-btn-label">{t.delete}</span>
           </button>
 
           <div className="toolbar-separator" />
@@ -474,7 +485,7 @@ export default function App() {
             title="Open completed file"
           >
             <ExternalLink size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Open File</span>
+            <span className="tool-btn-label">{t.openFile}</span>
           </button>
 
           <button
@@ -484,7 +495,7 @@ export default function App() {
             title="Open destination folder"
           >
             <FolderOpen size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Folder</span>
+            <span className="tool-btn-label">{t.folder}</span>
           </button>
 
           <div className="toolbar-separator" />
@@ -495,7 +506,7 @@ export default function App() {
             title="Toggle Download Threads Visualizer"
           >
             <Activity size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Threads</span>
+            <span className="tool-btn-label">{t.threads}</span>
           </button>
 
           <div className="toolbar-separator" />
@@ -506,7 +517,7 @@ export default function App() {
             title="Browser Extension Installation Guide (Chrome / Edge / Brave)"
           >
             <Puzzle size={20} className="tool-btn-icon" />
-            <span className="tool-btn-label">Extension</span>
+            <span className="tool-btn-label">{t.extension}</span>
           </button>
         </div>
 
@@ -521,10 +532,45 @@ export default function App() {
             <input
               type="text"
               className="search-input"
-              placeholder="Search downloads..."
+              placeholder={t.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+          </div>
+
+          {/* Language Selector Dropdown */}
+          <div className="lang-selector-wrap">
+            <button
+              className="lang-btn"
+              onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+              title={t.language}
+            >
+              <Globe size={15} color="#38bdf8" />
+              <span className="lang-btn-flag">{LANGUAGES.find((l) => l.code === language)?.flag}</span>
+              <span>{LANGUAGES.find((l) => l.code === language)?.name}</span>
+              <ChevronDown size={12} color="#94a3b8" />
+            </button>
+
+            {isLangMenuOpen && (
+              <div className="lang-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                {LANGUAGES.map((item) => (
+                  <button
+                    key={item.code}
+                    className={`lang-option ${language === item.code ? 'active' : ''}`}
+                    onClick={() => {
+                      setLanguage(item.code);
+                      setIsLangMenuOpen(false);
+                    }}
+                  >
+                    <div className="lang-option-left">
+                      <span>{item.flag}</span>
+                      <span>{item.name}</span>
+                    </div>
+                    <span className="lang-native-name">{item.nativeName}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -534,7 +580,7 @@ export default function App() {
         {/* Left Category Tree */}
         <aside className="idm-sidebar">
           <div>
-            <div className="sidebar-section-title">Categories</div>
+            <div className="sidebar-section-title">{t.categories}</div>
             <ul className="sidebar-menu">
               <li
                 className={`sidebar-item ${activeCategory === 'all' && activeStatus === 'all' ? 'active' : ''}`}
@@ -545,7 +591,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <Layers size={15} />
-                  <span>All Downloads</span>
+                  <span>{t.allDownloads}</span>
                 </div>
                 <span className="sidebar-badge">{counts.all}</span>
               </li>
@@ -558,7 +604,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <FileArchive size={15} />
-                  <span>Compressed</span>
+                  <span>{t.compressed}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
@@ -583,7 +629,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <FileText size={15} />
-                  <span>Documents</span>
+                  <span>{t.documents}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
@@ -608,7 +654,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <FileAudio size={15} />
-                  <span>Music</span>
+                  <span>{t.music}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
@@ -633,7 +679,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <FileBox size={15} />
-                  <span>Programs</span>
+                  <span>{t.programs}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
@@ -658,7 +704,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <FileVideo size={15} />
-                  <span>Video</span>
+                  <span>{t.video}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
@@ -678,7 +724,7 @@ export default function App() {
           </div>
 
           <div>
-            <div className="sidebar-section-title">Status</div>
+            <div className="sidebar-section-title">{t.status}</div>
             <ul className="sidebar-menu">
               <li
                 className={`sidebar-item ${activeStatus === 'downloading' ? 'active' : ''}`}
@@ -689,7 +735,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <Zap size={15} color="#34d399" />
-                  <span>Downloading</span>
+                  <span>{t.downloading}</span>
                 </div>
                 <span className="sidebar-badge">{counts.downloading}</span>
               </li>
@@ -702,7 +748,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <Pause size={15} color="#fbbf24" />
-                  <span>Paused</span>
+                  <span>{t.paused}</span>
                 </div>
                 <span className="sidebar-badge">{counts.paused}</span>
               </li>
@@ -715,7 +761,7 @@ export default function App() {
               >
                 <div className="sidebar-item-left">
                   <ExternalLink size={15} color="#60a5fa" />
-                  <span>Completed</span>
+                  <span>{t.completed}</span>
                 </div>
                 <span className="sidebar-badge">{counts.completed}</span>
               </li>
@@ -729,13 +775,13 @@ export default function App() {
             <table className="idm-table">
               <thead>
                 <tr>
-                  <th style={{ width: '30%' }}>File Name</th>
-                  <th style={{ width: '10%' }}>Size</th>
-                  <th style={{ width: '12%' }}>Status</th>
-                  <th style={{ width: '16%' }}>Progress</th>
-                  <th style={{ width: '10%' }}>Speed</th>
-                  <th style={{ width: '10%' }}>Time Left</th>
-                  <th style={{ width: '12%' }}>Threads</th>
+                  <th style={{ width: '30%' }}>{t.fileName}</th>
+                  <th style={{ width: '10%' }}>{t.size}</th>
+                  <th style={{ width: '12%' }}>{t.status}</th>
+                  <th style={{ width: '16%' }}>{t.progress}</th>
+                  <th style={{ width: '10%' }}>{t.speed}</th>
+                  <th style={{ width: '10%' }}>{t.timeLeft}</th>
+                  <th style={{ width: '12%' }}>{t.connections}</th>
                 </tr>
               </thead>
               <tbody>
@@ -854,7 +900,7 @@ export default function App() {
                 <div className="inspector-title-group">
                   <div className="inspector-title">
                     <Activity size={14} />
-                    <span>Download Threads & Chunks</span>
+                    <span>{t.downloadThreadsTitle}</span>
                   </div>
                   <span className="inspector-filename">{selectedItem.filename}</span>
                 </div>
@@ -876,7 +922,7 @@ export default function App() {
                 <div className="threads-visual-bar-wrap">
                   <div className="threads-visual-header">
                     <span>
-                      Active Dynamic Segmentation: {selectedItem.segments?.length || 1} Parallel Connections
+                      {format(t.activeSegmentation, { count: selectedItem.segments?.length || 1 })}
                     </span>
                     <span>
                       {selectedItem.status === DownloadStatus.StatusDownloading ? 'Accelerated Transfer' : selectedItem.status}
@@ -923,11 +969,11 @@ export default function App() {
                   <table className="threads-grid-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '12%' }}>Thread</th>
-                        <th style={{ width: '28%' }}>Byte Range Offset</th>
-                        <th style={{ width: '22%' }}>Downloaded / Total</th>
-                        <th style={{ width: '20%' }}>Progress</th>
-                        <th style={{ width: '18%' }}>Status</th>
+                        <th style={{ width: '12%' }}>{t.threadCol}</th>
+                        <th style={{ width: '28%' }}>{t.byteOffsetCol}</th>
+                        <th style={{ width: '22%' }}>{t.downloadedTotalCol}</th>
+                        <th style={{ width: '20%' }}>{t.progress}</th>
+                        <th style={{ width: '18%' }}>{t.statusCol}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -942,7 +988,7 @@ export default function App() {
                           return (
                             <tr key={idx}>
                               <td style={{ fontWeight: 600, color: '#60a5fa' }}>
-                                Connection #{idx + 1}
+                                {format(t.connectionNum, { num: idx + 1 })}
                               </td>
                               <td>
                                 {seg.start.toLocaleString()} - {seg.end >= 0 ? seg.end.toLocaleString() : 'EOF'}
@@ -973,7 +1019,7 @@ export default function App() {
                                     fontWeight: 500,
                                   }}
                                 >
-                                  {seg.done ? 'Finished' : selectedItem.status === DownloadStatus.StatusDownloading ? 'Receiving...' : 'Idle'}
+                                  {seg.done ? t.finished : selectedItem.status === DownloadStatus.StatusDownloading ? t.active : t.idle}
                                 </span>
                               </td>
                             </tr>
@@ -981,7 +1027,7 @@ export default function App() {
                         })
                       ) : (
                         <tr>
-                          <td style={{ fontWeight: 600, color: '#60a5fa' }}>Connection #1</td>
+                          <td style={{ fontWeight: 600, color: '#60a5fa' }}>{format(t.connectionNum, { num: 1 })}</td>
                           <td>0 - {selectedItem.totalSize > 0 ? selectedItem.totalSize.toLocaleString() : 'Stream'}</td>
                           <td>{formatBytes(selectedItem.downloadedBytes)}</td>
                           <td>{(selectedItem.percent || 0).toFixed(1)}%</td>
@@ -1000,12 +1046,12 @@ export default function App() {
       {/* 4. Bottom Status Bar */}
       <footer className="idm-statusbar">
         <div className="statusbar-left">
-          <span>{downloads.length} downloads total</span>
-          <span>{counts.downloading} active</span>
-          <span>{counts.completed} completed</span>
+          <span>{format(t.downloadsTotal, { count: downloads.length })}</span>
+          <span>{format(t.activeCount, { count: counts.downloading })}</span>
+          <span>{format(t.completedCount, { count: counts.completed })}</span>
         </div>
         <div className="statusbar-right">
-          <span>Save to: {defaultDir || 'Downloads'}</span>
+          <span>{t.saveTo}: {defaultDir || 'Downloads'}</span>
           <span>godm v0.1.0-alpha</span>
         </div>
       </footer>
@@ -1015,19 +1061,19 @@ export default function App() {
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Add New Download</h2>
+              <h2>{t.enterDownloadUrl}</h2>
               <button className="modal-close" onClick={() => setIsModalOpen(false)}>
                 <X size={18} />
               </button>
             </div>
 
             <div className="form-group">
-              <label>Download URL (File, Direct Link, YouTube, TikTok, X...)</label>
+              <label>{t.enterDownloadUrl}</label>
               <div className="input-with-button">
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="https://... or YouTube video link"
+                  placeholder={t.urlPlaceholder}
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   autoFocus
@@ -1038,7 +1084,7 @@ export default function App() {
                   disabled={isProbing || !url.trim()}
                 >
                   <Search size={15} />
-                  <span>{isProbing ? 'Inspecting...' : 'Inspect'}</span>
+                  <span>{isProbing ? t.inspecting : 'Inspect'}</span>
                 </button>
               </div>
             </div>
@@ -1073,7 +1119,7 @@ export default function App() {
                   )}
 
                   <div className="form-group" style={{ marginTop: '6px' }}>
-                    <label>Select Quality / Resolution</label>
+                    <label>{t.selectQuality}</label>
                     <select
                       className="format-select"
                       value={selectedFormat}
@@ -1095,11 +1141,11 @@ export default function App() {
             {!mediaInfo && probeInfo && (
               <div className="probe-preview">
                 <div className="probe-row">
-                  <span className="probe-label">File Name:</span>
+                  <span className="probe-label">{t.fileName}:</span>
                   <span className="probe-val">{probeInfo.Filename || 'Unknown'}</span>
                 </div>
                 <div className="probe-row">
-                  <span className="probe-label">Size:</span>
+                  <span className="probe-label">{t.size}:</span>
                   <span className="probe-val">
                     {probeInfo.ContentLength > 0
                       ? formatBytes(probeInfo.ContentLength)
@@ -1107,7 +1153,7 @@ export default function App() {
                   </span>
                 </div>
                 <div className="probe-row">
-                  <span className="probe-label">Category:</span>
+                  <span className="probe-label">{t.categories}:</span>
                   <span className="probe-val">
                     <span className="badge-tag">{detectedCategory}</span>
                   </span>
@@ -1128,11 +1174,11 @@ export default function App() {
             )}
 
             <div className="form-group">
-              <label>File Name (Optional rename)</label>
+              <label>{t.filenameOnDisk}</label>
               <input
                 type="text"
                 className="form-input"
-                placeholder="Filename on disk"
+                placeholder={t.filenameOnDisk}
                 value={customFilename}
                 onChange={(e) => handleFilenameChange(e.target.value)}
               />
@@ -1140,7 +1186,7 @@ export default function App() {
 
             {!mediaInfo && (
               <div className="form-group">
-                <label>Parallel Connections (Threads)</label>
+                <label>{t.parallelThreads}</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {[1, 4, 8, 16, 24, 32].map((num) => (
                     <button
@@ -1164,7 +1210,7 @@ export default function App() {
 
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ margin: 0 }}>Save Location</label>
+                <label style={{ margin: 0 }}>{t.saveFolder}</label>
                 <span className="badge-tag">{detectedCategory} Folder</span>
               </div>
               <input
@@ -1177,7 +1223,7 @@ export default function App() {
 
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setIsModalOpen(false)}>
-                Cancel
+                {t.cancel}
               </button>
               <button
                 className="btn-primary"
@@ -1185,7 +1231,7 @@ export default function App() {
                 disabled={!url.trim()}
               >
                 {mediaInfo ? <Video size={16} /> : <Download size={16} />}
-                <span>{mediaInfo ? 'Download Video' : 'Start Download'}</span>
+                <span>{t.startDownload}</span>
               </button>
             </div>
           </div>
@@ -1201,12 +1247,12 @@ export default function App() {
             <div className="modal-header">
               <div className="modal-title">
                 <Puzzle size={20} style={{ color: 'var(--accent)' }} />
-                <span>Browser Extension Installation Guide</span>
+                <span>{t.extensionGuideTitle}</span>
               </div>
               <button
                 className="icon-btn-ghost"
                 onClick={() => setIsGuideOpen(false)}
-                title="Close guide"
+                title={t.close}
               >
                 <X size={18} />
               </button>
@@ -1218,7 +1264,7 @@ export default function App() {
 
             {/* Extension Location Box */}
             <div className="form-group" style={{ marginTop: '8px' }}>
-              <label>Extension Directory (Local)</label>
+              <label>{t.extensionPathLabel}</label>
               <div className="path-box">
                 <span className="path-text" title={extensionPath}>
                   {extensionPath || 'Loading path...'}
@@ -1226,11 +1272,11 @@ export default function App() {
                 <div className="path-actions">
                   <button className="btn-small" onClick={handleCopyPath} title="Copy folder path to clipboard">
                     {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                    <span>{copied ? t.copied : t.copyPath}</span>
                   </button>
                   <button className="btn-small" onClick={handleOpenExtensionFolder} title="Open extension folder in File Explorer">
                     <FolderOpen size={14} />
-                    <span>Open Folder</span>
+                    <span>{t.openExtensionFolder}</span>
                   </button>
                 </div>
               </div>
@@ -1263,7 +1309,7 @@ export default function App() {
               <div className="step-item">
                 <div className="step-number">1</div>
                 <div className="step-content">
-                  Open your browser and navigate to{' '}
+                  {t.step1}:{' '}
                   <span className="step-code">
                     {guideBrowser === 'chrome' && 'chrome://extensions'}
                     {guideBrowser === 'edge' && 'edge://extensions'}
@@ -1275,21 +1321,14 @@ export default function App() {
               <div className="step-item">
                 <div className="step-number">2</div>
                 <div className="step-content">
-                  Turn ON <strong>Developer mode</strong> using the toggle switch located in the top-right corner.
+                  {t.step2}
                 </div>
               </div>
 
               <div className="step-item">
                 <div className="step-number">3</div>
                 <div className="step-content">
-                  Click the <strong>Load unpacked</strong> button that appears on the top toolbar.
-                </div>
-              </div>
-
-              <div className="step-item">
-                <div className="step-number">4</div>
-                <div className="step-content">
-                  Select the extension folder using <strong>Open Folder</strong> above, or paste the copied path into the file dialog.
+                  {t.step3}
                 </div>
               </div>
             </div>
@@ -1304,7 +1343,7 @@ export default function App() {
 
             <div className="modal-footer">
               <button className="btn-primary" onClick={() => setIsGuideOpen(false)}>
-                Done
+                {t.close}
               </button>
             </div>
           </div>

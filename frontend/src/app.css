@@ -1067,3 +1067,168 @@ html, body {
   font-size: 0.785rem;
   color: #34d399;
 }
+
+/* ==========================================================================
+   Language Switcher & Internationalization (i18n)
+   ========================================================================== */
+.lang-selector-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.775rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.lang-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--border-light);
+}
+
+.lang-btn-flag {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.lang-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #0f172a;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  min-width: 195px;
+  max-height: 380px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: fadeIn 0.15s ease;
+}
+
+.lang-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.lang-option:hover {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.lang-option.active {
+  background: rgba(59, 130, 246, 0.22);
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.lang-option-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lang-native-name {
+  color: var(--text-muted);
+  font-size: 0.725rem;
+}
+
+/* ==========================================================================
+   RTL (Right-to-Left) Layout Support (Arabic, etc.)
+   ========================================================================== */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .idm-toolbar {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .toolbar-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .toolbar-right {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .search-box {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .lang-dropdown-menu {
+  right: auto;
+  left: 0;
+}
+
+[dir="rtl"] .lang-option {
+  text-align: right;
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .idm-workspace {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .sidebar-item-left {
+  flex-direction: row;
+}
+
+[dir="rtl"] .idm-table th,
+[dir="rtl"] .idm-table td {
+  text-align: right;
+}
+
+[dir="rtl"] .table-progress-bar {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .statusbar-left,
+[dir="rtl"] .statusbar-right {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .idm-statusbar {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .threads-grid-table th,
+[dir="rtl"] .threads-grid-table td {
+  text-align: right;
+}
+
+[dir="rtl"] .modal-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .modal-footer {
+  flex-direction: row-reverse;
+}
