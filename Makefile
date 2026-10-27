@@ -1,4 +1,9 @@
-.PHONY: all dev build build-cli build-desktop test lint bindings frontend-install frontend-build
+EXE :=
+ifeq ($(OS),Windows_NT)
+	EXE := .exe
+endif
+
+.PHONY: all dev build build-cli build-desktop test lint bindings frontend-install frontend-build clean
 
 all: test build
 
@@ -24,17 +29,16 @@ test:
 
 # Build standalone CLI binary (headless)
 build-cli:
-	go build -o bin/godm-cli.exe ./cmd/godm
+	go build -trimpath -ldflags="-w -s" -o bin/godm-cli$(EXE) ./cmd/godm
 
 # Build desktop GUI app (Wails + embedded frontend)
 build-desktop: frontend-build
-	go build -o bin/godm.exe .
+	wails3 build
 
 # Full build (both Desktop and CLI)
 build: frontend-build build-desktop build-cli
-	@echo "Build complete: bin/godm.exe & bin/godm-cli.exe"
+	@echo "Build complete: bin/godm$(EXE) & bin/godm-cli$(EXE)"
 
-# Package extension zip
-extension-zip:
-	powershell Compress-Archive -Path "extension/*" -DestinationPath "bin/godm-extension.zip" -Force
-
+# Build Linux packages (deb, rpm, appimage) when on Linux
+package-linux:
+	wails3 task linux:package

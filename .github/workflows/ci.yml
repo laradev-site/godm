@@ -24,10 +24,21 @@ defaults:
 
 jobs:
   test:
-    runs-on: windows-latest
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -57,3 +68,7 @@ jobs:
       - name: Verify Frontend Build
         working-directory: frontend
         run: pnpm run build
+
+      - name: Test Standalone CLI Build
+        run: |
+          go build -trimpath -ldflags="-w -s" -o bin/godm-cli ./cmd/godm

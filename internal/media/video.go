@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -70,10 +71,15 @@ func IsVideoPlatform(rawURL string) bool {
 	return false
 }
 
-// GetBinaryPath finds yt-dlp.exe in local tools, AppData, or PATH.
+// GetBinaryPath finds yt-dlp (or yt-dlp.exe on Windows) in local tools, config dir, or PATH.
 func GetBinaryPath() string {
+	binName := "yt-dlp"
+	if runtime.GOOS == "windows" {
+		binName = "yt-dlp.exe"
+	}
+
 	// 1. Check local tools folder in current/project dir
-	localTools := filepath.Join(".", "tools", "yt-dlp.exe")
+	localTools := filepath.Join(".", "tools", binName)
 	if _, err := os.Stat(localTools); err == nil {
 		abs, err := filepath.Abs(localTools)
 		if err == nil {
@@ -84,22 +90,31 @@ func GetBinaryPath() string {
 
 	// 2. Check exe dir/tools
 	if exePath, err := os.Executable(); err == nil {
-		sibling := filepath.Join(filepath.Dir(exePath), "tools", "yt-dlp.exe")
+		sibling := filepath.Join(filepath.Dir(exePath), "tools", binName)
 		if _, err := os.Stat(sibling); err == nil {
 			return sibling
 		}
 	}
 
-	// 3. Check AppData/godm/tools
+	// 3. Check AppData/Config/godm/tools
 	if appData, err := os.UserConfigDir(); err == nil {
-		appDataPath := filepath.Join(appData, "godm", "tools", "yt-dlp.exe")
+		appDataPath := filepath.Join(appData, "godm", "tools", binName)
 		if _, err := os.Stat(appDataPath); err == nil {
 			return appDataPath
 		}
 	}
 
-	// 4. Check system PATH
-	if path, err := exec.LookPath("yt-dlp"); err == nil {
+	// 4. On Linux, check common system locations
+	if runtime.GOOS != "windows" {
+		for _, common := range []string{"/usr/local/bin/yt-dlp", "/usr/bin/yt-dlp", "/usr/share/godm/tools/yt-dlp"} {
+			if _, err := os.Stat(common); err == nil {
+				return common
+			}
+		}
+	}
+
+	// 5. Check system PATH
+	if path, err := exec.LookPath(binName); err == nil {
 		return path
 	}
 
@@ -113,14 +128,22 @@ func EnsureEngine(progressCb func(pct float64)) (string, error) {
 		return existing, nil
 	}
 
+	binName := "yt-dlp"
+	downloadURL := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+	if runtime.GOOS == "windows" {
+		binName = "yt-dlp.exe"
+		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+	} else if runtime.GOOS == "darwin" {
+		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+	}
+
 	// Download to local tools directory
 	targetDir := filepath.Join(".", "tools")
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create tools dir: %w", err)
 	}
 
-	targetPath := filepath.Join(targetDir, "yt-dlp.exe")
-	downloadURL := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+	targetPath := filepath.Join(targetDir, binName)
 
 	resp, err := http.Get(downloadURL)
 	if err != nil {
@@ -161,6 +184,7 @@ func EnsureEngine(progressCb func(pct float64)) (string, error) {
 		}
 	}
 
+	_ = os.Chmod(targetPath, 0755)
 	abs, _ := filepath.Abs(targetPath)
 	return abs, nil
 }

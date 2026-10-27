@@ -104,6 +104,13 @@ func (s *DownloadService) SetApp(app *application.App) {
 
 // GetDefaultDownloadDir returns the user's standard Downloads folder.
 func (s *DownloadService) GetDefaultDownloadDir() string {
+	if runtime.GOOS == "linux" {
+		if xdg := os.Getenv("XDG_DOWNLOAD_DIR"); xdg != "" {
+			if info, err := os.Stat(xdg); err == nil && info.IsDir() {
+				return xdg
+			}
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "."
@@ -112,7 +119,8 @@ func (s *DownloadService) GetDefaultDownloadDir() string {
 	if info, err := os.Stat(downloads); err == nil && info.IsDir() {
 		return downloads
 	}
-	return home
+	_ = os.MkdirAll(downloads, 0755)
+	return downloads
 }
 
 // GetCategory determines the IDM-style category based on file extension.
@@ -769,16 +777,22 @@ func (s *DownloadService) OpenFile(path string) error {
 
 // OpenFolder opens the operating system file explorer at the specified file or folder.
 func (s *DownloadService) OpenFolder(path string) error {
-	dir := filepath.Dir(path)
-	if _, err := os.Stat(path); err == nil {
-		if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" {
+		if _, err := os.Stat(path); err == nil {
 			return exec.Command("explorer", "/select,", path).Start()
 		}
-	}
-	if runtime.GOOS == "windows" {
-		return exec.Command("explorer", dir).Start()
+		return exec.Command("explorer", filepath.Dir(path)).Start()
 	} else if runtime.GOOS == "darwin" {
-		return exec.Command("open", dir).Start()
+		if _, err := os.Stat(path); err == nil {
+			return exec.Command("open", "-R", path).Start()
+		}
+		return exec.Command("open", filepath.Dir(path)).Start()
+	}
+
+	// Linux / BSD
+	dir := path
+	if info, err := os.Stat(path); err == nil && !info.IsDir() {
+		dir = filepath.Dir(path)
 	}
 	return exec.Command("xdg-open", dir).Start()
 }
@@ -787,11 +801,25 @@ func (s *DownloadService) OpenFolder(path string) error {
 func (s *DownloadService) GetExtensionPath() string {
 	candidates := []string{
 		filepath.Join(".", "extension"),
+		filepath.Join("..", "extension"),
 	}
 	if exe, err := os.Executable(); err == nil {
 		candidates = append(candidates,
 			filepath.Join(filepath.Dir(exe), "extension"),
 			filepath.Join(filepath.Dir(exe), "..", "extension"),
+			filepath.Join(filepath.Dir(exe), "..", "share", "godm", "extension"),
+		)
+	}
+	if runtime.GOOS != "windows" {
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates,
+				filepath.Join(home, ".local", "share", "godm", "extension"),
+			)
+		}
+		candidates = append(candidates,
+			"/usr/share/godm/extension",
+			"/usr/local/share/godm/extension",
+			"/opt/godm/extension",
 		)
 	}
 	for _, p := range candidates {

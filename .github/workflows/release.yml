@@ -31,9 +31,12 @@ defaults:
     shell: bash
 
 jobs:
-  build-and-release:
+  build-windows:
+    name: Build Windows (amd64)
     runs-on: windows-latest
     timeout-minutes: 30
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +55,7 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$base" >> "$GITHUB_OUTPUT"
-          echo "Building godm release $tag"
+          echo "Building godm Windows release $tag"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -78,50 +81,145 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Run Tests
-        run: |
-          go test -v ./...
-
       - name: Build Application
         run: |
-          # Build frontend assets
           (cd frontend && pnpm run build)
-          
-          # Build Wails GUI executable
           wails3 build
-          
-          # Build Standalone CLI executable
           go build -trimpath -ldflags="-w -s" -o bin/godm-cli.exe ./cmd/godm
 
-      - name: Package Release Assets
-        id: pkg
+      - name: Package Windows Assets
         shell: pwsh
         run: |
           $tag = "${{ steps.ver.outputs.tag }}"
           $zipName = "godm-$tag-windows-amd64.zip"
           
-          # Create release package directory
-          New-Item -ItemType Directory -Path "release_staging" -Force | Out-Null
-          Copy-Item "bin/godm.exe" "release_staging/"
-          Copy-Item "bin/godm-cli.exe" "release_staging/"
-          Copy-Item "extension" "release_staging/extension" -Recurse
-          Copy-Item "README.md" "release_staging/"
-          Copy-Item "LICENSE" "release_staging/"
+          New-Item -ItemType Directory -Path "dist_win" -Force | Out-Null
+          Copy-Item "bin/godm.exe" "dist_win/"
+          Copy-Item "bin/godm-cli.exe" "dist_win/"
+          Copy-Item "extension" "dist_win/extension" -Recurse
+          if (Test-Path "README.md") { Copy-Item "README.md" "dist_win/" }
+          if (Test-Path "LICENSE") { Copy-Item "LICENSE" "dist_win/" }
           
-          # Compress to zip
-          Compress-Archive -Path "release_staging/*" -DestinationPath $zipName -Force
-          echo "zip_path=$zipName" >> $env:GITHUB_OUTPUT
+          Compress-Archive -Path "dist_win/*" -DestinationPath "artifacts/$zipName" -Force
+          Copy-Item "bin/godm.exe" "artifacts/"
+          Copy-Item "bin/godm-cli.exe" "artifacts/"
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts/*
+
+  build-linux:
+    name: Build Linux (amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Version
+        id: ver
+        run: |
+          base=$(tr -d '\r\n' < version.txt)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.tag_name }}" ]]; then
+            tag="${{ github.event.inputs.tag_name }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+          else
+            tag="v${base}.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$base" >> "$GITHUB_OUTPUT"
+          echo "Building godm Linux release $tag"
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Install Wails v3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Application
+        run: |
+          (cd frontend && pnpm run build)
+          wails3 build
+          go build -trimpath -ldflags="-w -s" -o bin/godm-cli ./cmd/godm
+
+      - name: Package Linux Assets
+        run: |
+          tag="${{ steps.ver.outputs.tag }}"
+          mkdir -p artifacts dist_linux
+          
+          cp bin/godm dist_linux/
+          cp bin/godm-cli dist_linux/
+          cp -r extension dist_linux/
+          [ -f README.md ] && cp README.md dist_linux/
+          [ -f LICENSE ] && cp LICENSE dist_linux/
+          [ -f build/appicon.png ] && cp build/appicon.png dist_linux/
+          [ -f build/linux/desktop ] && cp build/linux/desktop dist_linux/godm.desktop
+          
+          tar -czvf "artifacts/godm-${tag}-linux-amd64.tar.gz" -C dist_linux .
+          cp bin/godm "artifacts/godm-linux-amd64"
+          cp bin/godm-cli "artifacts/godm-cli-linux-amd64"
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: artifacts/*
+
+  publish:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: release_files
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
+          path: release_files
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: godm ${{ steps.ver.outputs.tag }}
+          tag_name: ${{ needs.build-windows.outputs.tag }}
+          name: godm ${{ needs.build-windows.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(steps.ver.outputs.tag, '-dev') || contains(steps.ver.outputs.tag, '-alpha') }}
-          files: |
-            bin/godm.exe
-            bin/godm-cli.exe
-            ${{ steps.pkg.outputs.zip_path }}
+          prerelease: ${{ contains(needs.build-windows.outputs.tag, '-dev') || contains(needs.build-windows.outputs.tag, '-alpha') }}
+          files: release_files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

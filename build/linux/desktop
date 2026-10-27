@@ -1,13 +1,10 @@
 [Desktop Entry]
 Version=1.0
-Name=Tally Zoho Sync
-Comment=Tally Zoho Sync
-# The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/TallyZohoSync %u
+Name=GoDM
+Comment=High-Performance Multi-Connection Download Accelerator
+Exec=/usr/local/bin/godm %u
 Terminal=false
 Type=Application
-Icon=TallyZohoSync
-Categories=Utility;
-StartupWMClass=TallyZohoSync
-
- 
+Icon=godm
+Categories=Network;FileTransfer;
+StartupWMClass=godm
