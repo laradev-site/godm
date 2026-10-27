@@ -229,13 +229,14 @@ func updateVideoSegments(segs []storage.SegmentState, pct float64) {
 
 // StartVideoDownload begins downloading a video from YouTube, TikTok, or other platforms using 16 concurrent fragments.
 func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, outputDir string, customFilename string) (*DownloadItem, error) {
+	isAudioOnly := formatID == "bestaudio/best" || (strings.HasPrefix(formatID, "bestaudio") && !strings.Contains(formatID, "bestvideo"))
 	category := CategoryVideo
-	if formatID == "bestaudio/best" {
+	if isAudioOnly {
 		category = CategoryMusic
 	}
 
 	defaultDir := s.GetDefaultDownloadDir()
-	if outputDir == "" || outputDir == defaultDir {
+	if outputDir == "" || outputDir == defaultDir || (category == CategoryVideo && strings.HasSuffix(outputDir, CategoryMusic)) {
 		outputDir = s.GetCategoryDir(category)
 	} else {
 		_ = os.MkdirAll(outputDir, 0755)
@@ -249,11 +250,18 @@ func (s *DownloadService) StartVideoDownload(rawURL string, formatID string, out
 	}
 
 	filename := info.Title + ".mp4"
-	if formatID == "bestaudio/best" {
+	if isAudioOnly {
 		filename = info.Title + ".mp3"
 	}
 	if customFilename != "" {
 		filename = customFilename
+		if filepath.Ext(filename) == "" {
+			if isAudioOnly {
+				filename += ".mp3"
+			} else {
+				filename += ".mp4"
+			}
+		}
 	}
 	destPath := filepath.Join(outputDir, filename)
 
@@ -342,6 +350,40 @@ func (s *DownloadService) runVideoDownload(ctx context.Context, id string, t *ac
 			s.app.Event.Emit("download:status", *t.item)
 		}
 		return
+	}
+
+	// Locate the actual final file on disk to ensure exact filesize and filename are captured
+	targetBase := strings.TrimSuffix(filename, filepath.Ext(filename))
+	var actualFile string
+	var actualSize int64
+
+	exactPath := filepath.Join(outputDir, filename)
+	if fi, err := os.Stat(exactPath); err == nil && fi.Size() > 0 {
+		actualFile = exactPath
+		actualSize = fi.Size()
+	} else {
+		// Scan directory for matching output files (e.g. .mp4, .mkv, .mp3, .webm)
+		if files, err := os.ReadDir(outputDir); err == nil {
+			for _, f := range files {
+				if !f.IsDir() && strings.HasPrefix(f.Name(), targetBase) && !strings.Contains(f.Name(), ".part") {
+					ext := strings.ToLower(filepath.Ext(f.Name()))
+					if ext == ".mp4" || ext == ".mkv" || ext == ".mp3" || ext == ".webm" {
+						full := filepath.Join(outputDir, f.Name())
+						if fi, err := os.Stat(full); err == nil && fi.Size() > actualSize {
+							actualFile = full
+							actualSize = fi.Size()
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if actualFile != "" && actualSize > 0 {
+		t.item.DestPath = actualFile
+		t.item.Filename = filepath.Base(actualFile)
+		t.item.TotalSize = actualSize
+		t.item.DownloadedBytes = actualSize
 	}
 
 	t.item.Status = StatusCompleted

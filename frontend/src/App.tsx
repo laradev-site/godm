@@ -153,7 +153,13 @@ export default function App() {
 
   const handleFormatChange = async (fmtId: string) => {
     setSelectedFormat(fmtId);
-    if (fmtId.includes('audio')) {
+    const matchedFmt = mediaInfo?.formats?.find((f) => f.formatId === fmtId);
+    const isAudioOnly =
+      matchedFmt?.isAudioOnly ||
+      fmtId === 'bestaudio/best' ||
+      (fmtId.startsWith('bestaudio') && !fmtId.includes('bestvideo'));
+
+    if (isAudioOnly) {
       setDetectedCategory('Music');
       const dir = await DownloadService.GetCategoryDir('Music');
       setDefaultDir(dir);

@@ -121,6 +121,74 @@ func GetBinaryPath() string {
 	return ""
 }
 
+// GetFFmpegPath searches for ffmpeg in local tools, next to executable, AppData, common system locations, and PATH.
+func GetFFmpegPath() string {
+	binName := "ffmpeg"
+	if runtime.GOOS == "windows" {
+		binName = "ffmpeg.exe"
+	}
+
+	// 1. Local tools folder in current/project dir
+	localTools := filepath.Join(".", "tools", binName)
+	if _, err := os.Stat(localTools); err == nil {
+		if abs, err := filepath.Abs(localTools); err == nil {
+			return abs
+		}
+		return localTools
+	}
+
+	// 2. Sibling in exe dir / tools
+	if exePath, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exePath)
+		sibling := filepath.Join(dir, "tools", binName)
+		if _, err := os.Stat(sibling); err == nil {
+			return sibling
+		}
+		nextToExe := filepath.Join(dir, binName)
+		if _, err := os.Stat(nextToExe); err == nil {
+			return nextToExe
+		}
+	}
+
+	// 3. AppData / UserConfigDir
+	if appData, err := os.UserConfigDir(); err == nil {
+		appDataPath := filepath.Join(appData, "godm", "tools", binName)
+		if _, err := os.Stat(appDataPath); err == nil {
+			return appDataPath
+		}
+	}
+
+	// 4. Common OS locations
+	if runtime.GOOS == "windows" {
+		commonPaths := []string{
+			`C:\Program Files\ShareX\ffmpeg.exe`,
+			`C:\ffmpeg\bin\ffmpeg.exe`,
+			`C:\Program Files\ffmpeg\bin\ffmpeg.exe`,
+			`C:\ProgramData\chocolatey\bin\ffmpeg.exe`,
+			`C:\tools\ffmpeg\bin\ffmpeg.exe`,
+			filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links", "ffmpeg.exe"),
+		}
+		for _, p := range commonPaths {
+			if _, err := os.Stat(p); err == nil {
+				return p
+			}
+		}
+	} else {
+		for _, common := range []string{"/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg", "/usr/share/godm/tools/ffmpeg"} {
+			if _, err := os.Stat(common); err == nil {
+				return common
+			}
+		}
+	}
+
+	// 5. System PATH
+	if path, err := exec.LookPath(binName); err == nil {
+		return path
+	}
+
+	return ""
+}
+
 // EnsureEngine verifies that yt-dlp is installed, downloading it if necessary.
 func EnsureEngine(progressCb func(pct float64)) (string, error) {
 	existing := GetBinaryPath()
@@ -307,13 +375,22 @@ func DownloadMedia(
 		return errors.New("media engine yt-dlp is not available")
 	}
 
+	ffmpegPath := GetFFmpegPath()
+
 	if formatID == "" {
 		formatID = "bestvideo+bestaudio/best"
 	}
 
-	outTemplate := filepath.Join(outputDir, "%(title)s.%(ext)s")
+	isAudioOnly := formatID == "bestaudio/best" || (strings.HasPrefix(formatID, "bestaudio") && !strings.Contains(formatID, "bestvideo"))
+
+	var outTemplate string
+	var baseTitle string
 	if customFilename != "" {
-		outTemplate = filepath.Join(outputDir, customFilename)
+		ext := filepath.Ext(customFilename)
+		baseTitle = strings.TrimSuffix(customFilename, ext)
+		outTemplate = filepath.Join(outputDir, baseTitle+".%(ext)s")
+	} else {
+		outTemplate = filepath.Join(outputDir, "%(title)s.%(ext)s")
 	}
 
 	args := []string{
@@ -327,9 +404,18 @@ func DownloadMedia(
 		"--retries", "10",
 		"--fragment-retries", "10",
 		"-c", // Automatically continue/resume partially downloaded files
-		"-o", outTemplate,
-		mediaURL,
 	}
+
+	if ffmpegPath != "" {
+		args = append(args, "--ffmpeg-location", ffmpegPath)
+		if !isAudioOnly {
+			args = append(args, "--merge-output-format", "mp4")
+		} else {
+			args = append(args, "-x", "--audio-format", "mp3")
+		}
+	}
+
+	args = append(args, "-o", outTemplate, mediaURL)
 
 	cmd := exec.CommandContext(ctx, binPath, args...)
 
@@ -377,7 +463,47 @@ func DownloadMedia(
 		}
 	}
 
-	return cmd.Wait()
+	waitErr := cmd.Wait()
+
+	// Post-check: If yt-dlp finished but left unmerged video & audio fragments, merge them with ffmpeg
+	if ffmpegPath != "" && baseTitle != "" {
+		mergeUnmergedFragments(outputDir, baseTitle, ffmpegPath)
+	}
+
+	return waitErr
+}
+
+// mergeUnmergedFragments scans for any remaining .f*.mp4 and .f*.webm pieces and merges them into a single clean .mp4
+func mergeUnmergedFragments(dir string, baseTitle string, ffmpegPath string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+
+	var vidFile, audioFile string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasPrefix(name, baseTitle) {
+			if strings.Contains(name, ".f") && strings.HasSuffix(name, ".mp4") {
+				vidFile = filepath.Join(dir, name)
+			} else if strings.Contains(name, ".f") && (strings.HasSuffix(name, ".webm") || strings.HasSuffix(name, ".m4a")) {
+				audioFile = filepath.Join(dir, name)
+			}
+		}
+	}
+
+	finalTarget := filepath.Join(dir, baseTitle+".mp4")
+	if vidFile != "" && audioFile != "" {
+		// Run ffmpeg to mux video + audio
+		muxCmd := exec.Command(ffmpegPath, "-i", vidFile, "-i", audioFile, "-c", "copy", "-y", finalTarget)
+		if err := muxCmd.Run(); err == nil {
+			_ = os.Remove(vidFile)
+			_ = os.Remove(audioFile)
+		}
+	}
 }
 
 func parseSpeed(speedStr string) float64 {
