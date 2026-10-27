@@ -23,6 +23,10 @@ import {
   ChevronUp,
   Download,
   Video,
+  Puzzle,
+  Copy,
+  Check,
+  Globe,
 } from 'lucide-react';
 import * as DownloadService from '../bindings/godm/internal/service/downloadservice';
 import { DownloadItem, DownloadStatus } from '../bindings/godm/internal/service/models';
@@ -90,6 +94,12 @@ export default function App() {
   const [isVideoMode, setIsVideoMode] = useState(false);
   const [probeError, setProbeError] = useState('');
 
+  // Extension Guide Modal state
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [extensionPath, setExtensionPath] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [guideBrowser, setGuideBrowser] = useState<'chrome' | 'edge' | 'brave'>('chrome');
+
   const inspectUrl = async (targetUrl: string, initialFilename?: string) => {
     const trimmed = targetUrl.trim();
     if (!trimmed) return;
@@ -132,6 +142,7 @@ export default function App() {
   // Initial load
   useEffect(() => {
     DownloadService.GetDefaultDownloadDir().then(setDefaultDir);
+    DownloadService.GetExtensionPath().then(setExtensionPath).catch(() => {});
     DownloadService.ListDownloads().then((items) => {
       if (items) {
         const valid = items.filter((i): i is DownloadItem => i !== null);
@@ -286,6 +297,18 @@ export default function App() {
     DownloadService.OpenFolder(path);
   };
 
+  const handleCopyPath = () => {
+    if (extensionPath) {
+      navigator.clipboard.writeText(extensionPath);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleOpenExtensionFolder = () => {
+    DownloadService.OpenExtensionFolder();
+  };
+
   const handleStartDownload = async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
@@ -408,6 +431,17 @@ export default function App() {
           >
             <Activity size={20} className="tool-btn-icon" />
             <span className="tool-btn-label">Threads</span>
+          </button>
+
+          <div className="toolbar-separator" />
+
+          <button
+            className={`tool-btn ${isGuideOpen ? 'active' : ''}`}
+            onClick={() => setIsGuideOpen(true)}
+            title="Browser Extension Installation Guide (Chrome / Edge / Brave)"
+          >
+            <Puzzle size={20} className="tool-btn-icon" />
+            <span className="tool-btn-label">Extension</span>
           </button>
         </div>
 
@@ -977,6 +1011,125 @@ export default function App() {
               >
                 {mediaInfo ? <Video size={16} /> : <Download size={16} />}
                 <span>{mediaInfo ? 'Download Video' : 'Start Download'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 4. Browser Extension Installation Guide Modal */}
+      {isGuideOpen && (
+        <div className="modal-backdrop" onClick={() => setIsGuideOpen(false)}>
+          <div
+            className="modal-card guide-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div className="modal-title">
+                <Puzzle size={20} style={{ color: 'var(--accent)' }} />
+                <span>Browser Extension Installation Guide</span>
+              </div>
+              <button
+                className="icon-btn-ghost"
+                onClick={() => setIsGuideOpen(false)}
+                title="Close guide"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="guide-intro">
+              The GoDM extension enables automatic download interception and high-speed video capture for YouTube, TikTok, Instagram, Twitter/X, and direct downloads across any website.
+            </div>
+
+            {/* Extension Location Box */}
+            <div className="form-group" style={{ marginTop: '8px' }}>
+              <label>Extension Directory (Local)</label>
+              <div className="path-box">
+                <span className="path-text" title={extensionPath}>
+                  {extensionPath || 'Loading path...'}
+                </span>
+                <div className="path-actions">
+                  <button className="btn-small" onClick={handleCopyPath} title="Copy folder path to clipboard">
+                    {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                  <button className="btn-small" onClick={handleOpenExtensionFolder} title="Open extension folder in File Explorer">
+                    <FolderOpen size={14} />
+                    <span>Open Folder</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Browser Selection Tabs */}
+            <div className="browser-tabs">
+              <button
+                className={`browser-tab-btn ${guideBrowser === 'chrome' ? 'active' : ''}`}
+                onClick={() => setGuideBrowser('chrome')}
+              >
+                <Globe size={14} /> Google Chrome
+              </button>
+              <button
+                className={`browser-tab-btn ${guideBrowser === 'edge' ? 'active' : ''}`}
+                onClick={() => setGuideBrowser('edge')}
+              >
+                <Globe size={14} /> Microsoft Edge
+              </button>
+              <button
+                className={`browser-tab-btn ${guideBrowser === 'brave' ? 'active' : ''}`}
+                onClick={() => setGuideBrowser('brave')}
+              >
+                <Globe size={14} /> Brave Browser
+              </button>
+            </div>
+
+            {/* Interactive Steps */}
+            <div className="steps-list">
+              <div className="step-item">
+                <div className="step-number">1</div>
+                <div className="step-content">
+                  Open your browser and navigate to{' '}
+                  <span className="step-code">
+                    {guideBrowser === 'chrome' && 'chrome://extensions'}
+                    {guideBrowser === 'edge' && 'edge://extensions'}
+                    {guideBrowser === 'brave' && 'brave://extensions'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="step-item">
+                <div className="step-number">2</div>
+                <div className="step-content">
+                  Turn ON <strong>Developer mode</strong> using the toggle switch located in the top-right corner.
+                </div>
+              </div>
+
+              <div className="step-item">
+                <div className="step-number">3</div>
+                <div className="step-content">
+                  Click the <strong>Load unpacked</strong> button that appears on the top toolbar.
+                </div>
+              </div>
+
+              <div className="step-item">
+                <div className="step-number">4</div>
+                <div className="step-content">
+                  Select the extension folder using <strong>Open Folder</strong> above, or paste the copied path into the file dialog.
+                </div>
+              </div>
+            </div>
+
+            {/* RPC Bridge Status */}
+            <div className="guide-features">
+              <Zap size={16} />
+              <span>
+                <strong>Zero Configuration:</strong> The local RPC bridge is active on <code>127.0.0.1:9246</code>. Once loaded, the GoDM extension icon in your browser will automatically detect media streams and capture downloads!
+              </span>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-primary" onClick={() => setIsGuideOpen(false)}>
+                Done
               </button>
             </div>
           </div>

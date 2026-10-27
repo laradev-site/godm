@@ -577,3 +577,37 @@ func (s *DownloadService) OpenFolder(path string) error {
 	}
 	return exec.Command("xdg-open", dir).Start()
 }
+
+// GetExtensionPath returns the absolute path to the browser extension folder.
+func (s *DownloadService) GetExtensionPath() string {
+	candidates := []string{
+		filepath.Join(".", "extension"),
+	}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(filepath.Dir(exe), "extension"),
+			filepath.Join(filepath.Dir(exe), "..", "extension"),
+		)
+	}
+	for _, p := range candidates {
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			if abs, err := filepath.Abs(p); err == nil {
+				return abs
+			}
+			return p
+		}
+	}
+	abs, _ := filepath.Abs("./extension")
+	return abs
+}
+
+// OpenExtensionFolder opens the extension directory directly in the file explorer.
+func (s *DownloadService) OpenExtensionFolder() error {
+	p := s.GetExtensionPath()
+	if runtime.GOOS == "windows" {
+		return exec.Command("explorer", p).Start()
+	} else if runtime.GOOS == "darwin" {
+		return exec.Command("open", p).Start()
+	}
+	return exec.Command("xdg-open", p).Start()
+}

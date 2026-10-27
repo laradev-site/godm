@@ -39,6 +39,13 @@ export function GetDefaultDownloadDir(): $CancellablePromise<string> {
 }
 
 /**
+ * GetExtensionPath returns the absolute path to the browser extension folder.
+ */
+export function GetExtensionPath(): $CancellablePromise<string> {
+    return $Call.ByID(3181565227);
+}
+
+/**
  * InspectVideo fetches video title, thumbnail, creator, and available resolutions/audio formats.
  */
 export function InspectVideo(rawURL: string): $CancellablePromise<media$0.MediaInfo | null> {
@@ -57,6 +64,13 @@ export function IsVideoURL(rawURL: string): $CancellablePromise<boolean> {
  */
 export function ListDownloads(): $CancellablePromise<($models.DownloadItem | null)[] | null> {
     return $Call.ByID(1217981614);
+}
+
+/**
+ * OpenExtensionFolder opens the extension directory directly in the file explorer.
+ */
+export function OpenExtensionFolder(): $CancellablePromise<void> {
+    return $Call.ByID(2005386002);
 }
 
 /**
