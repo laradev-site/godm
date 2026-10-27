@@ -90,6 +90,45 @@ export default function App() {
   const [isVideoMode, setIsVideoMode] = useState(false);
   const [probeError, setProbeError] = useState('');
 
+  const inspectUrl = async (targetUrl: string, initialFilename?: string) => {
+    const trimmed = targetUrl.trim();
+    if (!trimmed) return;
+    setIsProbing(true);
+    setProbeError('');
+    setProbeInfo(null);
+    setMediaInfo(null);
+
+    try {
+      const isVid = await DownloadService.IsVideoURL(trimmed);
+      if (isVid) {
+        setIsVideoMode(true);
+        const info = await DownloadService.InspectVideo(trimmed);
+        if (info) {
+          setMediaInfo(info);
+          if (info.formats && info.formats.length > 0) {
+            setSelectedFormat(info.formats[0].formatId);
+          }
+          setCustomFilename(initialFilename || `${info.title}.mp4`);
+        }
+      } else {
+        setIsVideoMode(false);
+        const info = await DownloadService.ProbeURL(trimmed);
+        if (info) {
+          setProbeInfo(info);
+          setCustomFilename(initialFilename || info.Filename || 'download.bin');
+        }
+      }
+    } catch (err: any) {
+      setProbeError(err?.message || 'Failed to inspect URL');
+    } finally {
+      setIsProbing(false);
+    }
+  };
+
+  const handleProbe = () => {
+    inspectUrl(url);
+  };
+
   // Initial load
   useEffect(() => {
     DownloadService.GetDefaultDownloadDir().then(setDefaultDir);
@@ -133,15 +172,13 @@ export default function App() {
       });
     });
 
-    // Extension trigger: opens modal with URL prefilled
+    // Extension trigger: opens modal with URL prefilled and starts auto-inspection
     const unbindExtension = Events.On('extension:new-download', (event: any) => {
       const data = event.data;
       if (data && data.url) {
         setUrl(data.url);
         setIsModalOpen(true);
-        if (data.filename) {
-          setCustomFilename(data.filename);
-        }
+        inspectUrl(data.url, data.filename);
       }
     });
 
@@ -247,45 +284,6 @@ export default function App() {
 
   const handleOpenFolder = (path: string) => {
     DownloadService.OpenFolder(path);
-  };
-
-  const handleProbe = async () => {
-    const trimmed = url.trim();
-    if (!trimmed) return;
-    setIsProbing(true);
-    setProbeError('');
-    setProbeInfo(null);
-    setMediaInfo(null);
-
-    try {
-      const isVid = await DownloadService.IsVideoURL(trimmed);
-      if (isVid) {
-        setIsVideoMode(true);
-        const info = await DownloadService.InspectVideo(trimmed);
-        if (info) {
-          setMediaInfo(info);
-          if (info.formats && info.formats.length > 0) {
-            setSelectedFormat(info.formats[0].formatId);
-          }
-          if (!customFilename && info.title) {
-            setCustomFilename(`${info.title}.mp4`);
-          }
-        }
-      } else {
-        setIsVideoMode(false);
-        const info = await DownloadService.ProbeURL(trimmed);
-        if (info) {
-          setProbeInfo(info);
-          if (!customFilename && info.Filename) {
-            setCustomFilename(info.Filename);
-          }
-        }
-      }
-    } catch (err: any) {
-      setProbeError(err?.message || 'Failed to inspect URL');
-    } finally {
-      setIsProbing(false);
-    }
   };
 
   const handleStartDownload = async () => {

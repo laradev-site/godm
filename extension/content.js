@@ -1,5 +1,7 @@
-// godm Video Sniffer & Floating Download Bar
+// godm Universal Video Sniffer & Floating Download Bar
 (function () {
+  'use strict';
+
   let widgetEnabled = true;
 
   chrome.storage.local.get('showVideoWidget', (res) => {
@@ -8,94 +10,195 @@
     }
   });
 
-  // Check if current site is a video platform (YouTube, TikTok, Instagram, Twitter, etc.)
-  const isVideoSite = /(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|twitter\.com|x\.com|facebook\.com|vimeo\.com|twitch\.tv|dailymotion\.com|reddit\.com)/i.test(
-    window.location.hostname
-  );
+  // Check if current site is a known video platform
+  const hostname = window.location.hostname.toLowerCase();
+  const isYouTube = hostname.includes('youtube.com') || hostname.includes('youtu.be');
+  const isTikTok = hostname.includes('tiktok.com');
+  const isInstagram = hostname.includes('instagram.com');
+  const isTwitter = hostname.includes('twitter.com') || hostname.includes('x.com');
+  const isFacebook = hostname.includes('facebook.com') || hostname.includes('fb.watch');
+  const isReddit = hostname.includes('reddit.com');
 
-  function createFloatingButton(videoElement) {
+  function getCanonicalMediaURL(videoElement) {
+    if (isYouTube) {
+      // Check if YouTube Shorts
+      if (window.location.pathname.startsWith('/shorts/')) {
+        return window.location.href;
+      }
+      // Standard YouTube Watch
+      const urlParams = new URLSearchParams(window.location.search);
+      const v = urlParams.get('v');
+      if (v) {
+        return `https://www.youtube.com/watch?v=${v}`;
+      }
+      return window.location.href;
+    }
+
+    if (isTikTok || isInstagram || isTwitter || isFacebook || isReddit) {
+      return window.location.href;
+    }
+
+    // Generic HTML5 video: prefer direct source URL if available and valid
+    if (videoElement && videoElement.currentSrc && !videoElement.currentSrc.startsWith('blob:') && !videoElement.currentSrc.startsWith('data:')) {
+      return videoElement.currentSrc;
+    }
+
+    return window.location.href;
+  }
+
+  function getPlatformBadge() {
+    if (isYouTube) return 'YouTube';
+    if (isTikTok) return 'TikTok';
+    if (isInstagram) return 'Instagram';
+    if (isTwitter) return 'X / Twitter';
+    if (isFacebook) return 'Facebook';
+    if (isReddit) return 'Reddit';
+    return 'Video';
+  }
+
+  function attachWidget(container, videoElement) {
     if (!widgetEnabled) return;
-    if (videoElement.dataset.godmAttached) return;
-    videoElement.dataset.godmAttached = 'true';
+    if (container.querySelector('.godm-video-panel')) return;
 
-    const btn = document.createElement('div');
-    btn.className = 'godm-video-btn';
-    btn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-      </svg>
-      <span>Download with godm</span>
+    const panel = document.createElement('div');
+    panel.className = 'godm-video-panel';
+    const badge = getPlatformBadge();
+
+    panel.innerHTML = `
+      <div class="godm-video-btn" title="Download ${badge} video with godm">
+        <svg class="godm-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span class="godm-btn-text">Download ${badge}</span>
+      </div>
     `;
+
+    const btn = panel.querySelector('.godm-video-btn');
+    const textSpan = btn.querySelector('.godm-btn-text');
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
 
-      let targetUrl = window.location.href;
-      // If direct video src is available and not a dynamic site, use direct src
-      if (!isVideoSite && videoElement.currentSrc && !videoElement.currentSrc.startsWith('blob:')) {
-        targetUrl = videoElement.currentSrc;
-      }
+      const mediaUrl = getCanonicalMediaURL(videoElement);
+      const title = document.title || 'Video Download';
 
       btn.classList.add('loading');
-      btn.querySelector('span').innerText = 'Sending...';
+      textSpan.innerText = 'Sending...';
 
       chrome.runtime.sendMessage(
         {
           action: 'download-url',
-          url: targetUrl,
-          filename: document.title || '',
+          url: mediaUrl,
+          filename: title,
         },
-        (response) => {
+        (res) => {
           btn.classList.remove('loading');
-          if (response && response.success) {
+          if (res && res.success) {
             btn.classList.add('success');
-            btn.querySelector('span').innerText = '✓ Sent to godm';
+            textSpan.innerText = '✓ Sent to godm';
             setTimeout(() => {
               btn.classList.remove('success');
-              btn.querySelector('span').innerText = 'Download with godm';
+              textSpan.innerText = `Download ${badge}`;
             }, 3000);
           } else {
             btn.classList.add('error');
-            btn.querySelector('span').innerText = 'Start godm app!';
+            textSpan.innerText = 'Start godm app!';
             setTimeout(() => {
               btn.classList.remove('error');
-              btn.querySelector('span').innerText = 'Download with godm';
+              textSpan.innerText = `Download ${badge}`;
             }, 3000);
           }
         }
       );
     });
 
-    // Position relative to parent or fixed
-    const parent = videoElement.parentElement;
-    if (parent && getComputedStyle(parent).position === 'static') {
-      parent.style.position = 'relative';
+    // Handle auto-hide on mouse idle
+    let hideTimer = null;
+    const showPanel = () => {
+      panel.classList.add('visible');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        panel.classList.remove('visible');
+      }, 3500);
+    };
+
+    container.addEventListener('mousemove', showPanel);
+    container.addEventListener('mouseenter', showPanel);
+    container.addEventListener('mouseleave', () => {
+      clearTimeout(hideTimer);
+      panel.classList.remove('visible');
+    });
+
+    // Make sure container has relative/absolute positioning
+    const style = window.getComputedStyle(container);
+    if (style.position === 'static') {
+      container.style.position = 'relative';
     }
 
-    if (parent) {
-      parent.appendChild(btn);
-    }
+    container.appendChild(panel);
   }
 
-  // Find all HTML5 video elements
-  function scanVideos() {
-    const videos = document.querySelectorAll('video');
-    videos.forEach((v) => {
-      // Only attach to visible videos with dimensions
-      if (v.offsetWidth > 150 || v.offsetHeight > 100 || isVideoSite) {
-        createFloatingButton(v);
+  // Find candidate video containers across platforms
+  function scanAndInject() {
+    if (!widgetEnabled) return;
+
+    // 1. YouTube standard player
+    const ytPlayer = document.querySelector('#movie_player, .html5-video-player');
+    if (ytPlayer) {
+      const vid = ytPlayer.querySelector('video');
+      if (vid) {
+        attachWidget(ytPlayer, vid);
+      }
+    }
+
+    // 2. YouTube Shorts
+    const ytShorts = document.querySelectorAll('ytd-reel-video-renderer');
+    ytShorts.forEach((short) => {
+      const vid = short.querySelector('video');
+      if (vid) {
+        attachWidget(short, vid);
+      }
+    });
+
+    // 3. TikTok players
+    const tiktokPlayers = document.querySelectorAll('[data-e2e="feed-video"], .xgplayer');
+    tiktokPlayers.forEach((player) => {
+      const vid = player.querySelector('video');
+      if (vid) {
+        attachWidget(player, vid);
+      }
+    });
+
+    // 4. Twitter / X players
+    const twitterPlayers = document.querySelectorAll('[data-testid="videoPlayer"], [data-testid="videoComponent"]');
+    twitterPlayers.forEach((player) => {
+      const vid = player.querySelector('video');
+      if (vid) {
+        attachWidget(player, vid);
+      }
+    });
+
+    // 5. Generic HTML5 Videos
+    const allVideos = document.querySelectorAll('video');
+    allVideos.forEach((video) => {
+      // Ignore tiny icon-sized or hidden videos
+      if (video.offsetWidth > 160 && video.offsetHeight > 100) {
+        const parent = video.parentElement;
+        if (parent && !parent.querySelector('.godm-video-panel')) {
+          attachWidget(parent, video);
+        }
       }
     });
   }
 
-  // Initial scan and observer for dynamically inserted video players
-  scanVideos();
-  const observer = new MutationObserver(() => scanVideos());
+  // Scan immediately and observe for DOM changes
+  scanAndInject();
+  const observer = new MutationObserver(() => scanAndInject());
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // YouTube / Single Page App navigation support
+  // YouTube SPA navigation listener
   window.addEventListener('yt-navigate-finish', () => {
-    setTimeout(scanVideos, 1000);
+    setTimeout(scanAndInject, 1000);
   });
 })();
