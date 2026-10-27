@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#141A2B" />
+      <stop offset="100%" stop-color="#07090E" />
+    </linearGradient>
+    <linearGradient id="tzs" x1="30" y1="30" x2="270" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#743CDB" />
+      <stop offset="0.5" stop-color="#C084FC" />
+      <stop offset="1" stop-color="#FB5770" />
+    </linearGradient>
+    <filter id="ai-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#743CDB" flood-opacity="0.4" />
+      <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#FB5770" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Container with Chamfered Squircle -->
+  <rect width="512" height="512" rx="115" fill="url(#bg-grad)" />
+  <rect x="2" y="2" width="508" height="508" rx="113" stroke="rgba(255, 255, 255, 0.12)" stroke-width="2" fill="none" />
+
+  <!-- Tally Zoho Sync mark (varthak-brand-system assets/svg/tally-zoho-sync-mark.svg) -->
+  <g transform="translate(256, 256) scale(1.35) translate(-150, -129)" filter="url(#ai-shadow)">
+    <path d="M126 18L204 62V142L174 159L126 132V100L155 117V79L126 62L78 90V154L48 171V72L126 18Z" fill="url(#tzs)" />
+    <path d="M174 52L252 96V195L174 240L96 195V161L126 144V178L174 205L222 177V113L193 96L193 62L174 52Z" fill="url(#tzs)" />
+    <path d="M126 100L155 117L174 106L193 117L193 151L174 162L155 151L126 168L126 100Z" fill="url(#tzs)" />
+  </g>
+</svg>
