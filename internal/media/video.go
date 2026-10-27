@@ -259,20 +259,20 @@ func EnsureEngine(progressCb func(pct float64)) (string, error) {
 
 // RawYTDLPOutput is a partial representation of yt-dlp --dump-json output.
 type RawYTDLPOutput struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Thumbnail   string `json:"thumbnail"`
-	Duration    int    `json:"duration"`
-	Uploader    string `json:"uploader"`
-	Extractor   string `json:"extractor_key"`
-	Description string `json:"description"`
+	ID          string  `json:"id"`
+	Title       string  `json:"title"`
+	Thumbnail   string  `json:"thumbnail"`
+	Duration    float64 `json:"duration"`
+	Uploader    string  `json:"uploader"`
+	Extractor   string  `json:"extractor_key"`
+	Description string  `json:"description"`
 	Formats     []struct {
 		FormatID   string  `json:"format_id"`
 		Resolution string  `json:"resolution"`
-		Height     int     `json:"height"`
+		Height     float64 `json:"height"`
 		Ext        string  `json:"ext"`
-		Filesize   int64   `json:"filesize"`
-		FilesizeAp int64   `json:"filesize_approx"`
+		Filesize   float64 `json:"filesize"`
+		FilesizeAp float64 `json:"filesize_approx"`
 		VCodec     string  `json:"vcodec"`
 		ACodec     string  `json:"acodec"`
 		TBR        float64 `json:"tbr"`
@@ -327,18 +327,19 @@ func InspectMedia(ctx context.Context, mediaURL string) (*MediaInfo, error) {
 
 	for i := len(raw.Formats) - 1; i >= 0; i-- {
 		f := raw.Formats[i]
-		if f.VCodec != "none" && f.Height >= 360 {
-			resLabel := fmt.Sprintf("%dp", f.Height)
+		hInt := int(f.Height)
+		if f.VCodec != "none" && hInt >= 360 {
+			resLabel := fmt.Sprintf("%dp", hInt)
 			if !seenRes[resLabel] {
 				seenRes[resLabel] = true
-				sz := f.Filesize
+				sz := int64(f.Filesize)
 				if sz <= 0 {
-					sz = f.FilesizeAp
+					sz = int64(f.FilesizeAp)
 				}
 
 				label := fmt.Sprintf("%s (%s)", resLabel, strings.ToUpper(f.Ext))
 				info.Formats = append(info.Formats, MediaFormat{
-					FormatID:    fmt.Sprintf("bestvideo[height<=%d]+bestaudio/best[height<=%d]", f.Height, f.Height),
+					FormatID:    fmt.Sprintf("bestvideo[height<=%d]+bestaudio/best[height<=%d]", hInt, hInt),
 					Resolution:  resLabel,
 					Ext:         "mp4",
 					Filesize:    sz,
@@ -522,12 +523,13 @@ func parseSpeed(speedStr string) float64 {
 	return 0
 }
 
-func formatSeconds(sec int) string {
-	if sec <= 0 {
+func formatSeconds(sec float64) string {
+	sTotal := int(sec)
+	if sTotal <= 0 {
 		return "--:--"
 	}
-	m := sec / 60
-	s := sec % 60
+	m := sTotal / 60
+	s := sTotal % 60
 	if m >= 60 {
 		h := m / 60
 		m = m % 60

@@ -27,6 +27,7 @@ import {
   Copy,
   Check,
   Globe,
+  Sparkles,
 } from 'lucide-react';
 import * as DownloadService from '../bindings/godm/internal/service/downloadservice';
 import { DownloadItem, DownloadStatus } from '../bindings/godm/internal/service/models';
@@ -83,6 +84,7 @@ function getFileIcon(filename: string, category?: string) {
 export default function App() {
   const { language, setLanguage, t, format } = useI18n();
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const [isLangModalOpen, setIsLangModalOpen] = useState(false);
 
   useEffect(() => {
     if (!isLangMenuOpen) return;
@@ -116,7 +118,25 @@ export default function App() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [extensionPath, setExtensionPath] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const [guideBrowser, setGuideBrowser] = useState<'chrome' | 'edge' | 'brave'>('chrome');
+
+  const getBrowserExtensionUrl = (browser: 'chrome' | 'edge' | 'brave') => {
+    switch (browser) {
+      case 'edge':
+        return 'edge://extensions';
+      case 'brave':
+        return 'brave://extensions';
+      default:
+        return 'chrome://extensions';
+    }
+  };
+
+  const handleCopyUrl = (targetUrl: string) => {
+    navigator.clipboard.writeText(targetUrl);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
 
   const inspectUrl = async (targetUrl: string, initialFilename?: string) => {
     const trimmed = targetUrl.trim();
@@ -261,6 +281,19 @@ export default function App() {
       unbindExtension();
     };
   }, []);
+
+  // Global Escape key listener to dismiss active modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isGuideOpen) setIsGuideOpen(false);
+        else if (isModalOpen) setIsModalOpen(false);
+        else if (isLangMenuOpen) setIsLangMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGuideOpen, isModalOpen, isLangMenuOpen]);
 
   // Selected item reference
   const selectedItem = useMemo(() => {
@@ -518,6 +551,17 @@ export default function App() {
           >
             <Puzzle size={20} className="tool-btn-icon" />
             <span className="tool-btn-label">{t.extension}</span>
+          </button>
+
+          <div className="toolbar-separator" />
+
+          <button
+            className={`tool-btn ${isLangModalOpen ? 'active' : ''}`}
+            onClick={() => setIsLangModalOpen(true)}
+            title="Select Application Language / اختيار اللغة / Idioma"
+          >
+            <Globe size={20} className="tool-btn-icon" color="#38bdf8" />
+            <span className="tool-btn-label">{t.language || 'Language'}</span>
           </button>
         </div>
 
@@ -1237,44 +1281,86 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* 4. Browser Extension Installation Guide Modal */}
+      {/* 4. Browser Extension Installation Guide Modal (Popup Overlay) */}
       {isGuideOpen && (
-        <div className="modal-backdrop" onClick={() => setIsGuideOpen(false)}>
+        <div
+          className="modal-overlay guide-modal-overlay"
+          onClick={() => setIsGuideOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="guide-modal-title"
+        >
           <div
             className="modal-card guide-modal-card"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="modal-header">
-              <div className="modal-title">
-                <Puzzle size={20} style={{ color: 'var(--accent)' }} />
-                <span>{t.extensionGuideTitle}</span>
+            {/* Modal Header */}
+            <div className="modal-header guide-header">
+              <div className="guide-title-wrap">
+                <div className="guide-icon-badge">
+                  <Puzzle size={22} />
+                </div>
+                <div>
+                  <h2 id="guide-modal-title" className="guide-main-title">
+                    {t.extensionGuideTitle}
+                  </h2>
+                  <p className="guide-subtitle">
+                    Automatic download interception & high-speed media sniffing for your browser
+                  </p>
+                </div>
               </div>
               <button
-                className="icon-btn-ghost"
+                className="guide-close-btn"
                 onClick={() => setIsGuideOpen(false)}
                 title={t.close}
+                aria-label={t.close}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="guide-intro">
-              The GoDM extension enables automatic download interception and high-speed video capture for YouTube, TikTok, Instagram, Twitter/X, and direct downloads across any website.
+            {/* Feature Pills */}
+            <div className="guide-pills-row">
+              <span className="guide-pill">
+                <Zap size={13} /> Automatic Capture
+              </span>
+              <span className="guide-pill">
+                <Video size={13} /> YouTube, Reels & Media Sniffer
+              </span>
+              <span className="guide-pill">
+                <Sparkles size={13} /> 16x Parallel Acceleration
+              </span>
             </div>
 
-            {/* Extension Location Box */}
-            <div className="form-group" style={{ marginTop: '8px' }}>
-              <label>{t.extensionPathLabel}</label>
+            {/* Extension Directory Path Card */}
+            <div className="guide-path-card">
+              <div className="guide-path-header">
+                <div className="guide-path-label">
+                  <FolderOpen size={14} />
+                  <span>{t.extensionPathLabel}</span>
+                </div>
+                <span className="guide-path-badge">Unpacked Source</span>
+              </div>
               <div className="path-box">
                 <span className="path-text" title={extensionPath}>
-                  {extensionPath || 'Loading path...'}
+                  {extensionPath || 'Loading extension directory path...'}
                 </span>
                 <div className="path-actions">
-                  <button className="btn-small" onClick={handleCopyPath} title="Copy folder path to clipboard">
+                  <button
+                    type="button"
+                    className={`btn-small ${copied ? 'btn-copied' : ''}`}
+                    onClick={handleCopyPath}
+                    title="Copy folder path to clipboard"
+                  >
                     {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
                     <span>{copied ? t.copied : t.copyPath}</span>
                   </button>
-                  <button className="btn-small" onClick={handleOpenExtensionFolder} title="Open extension folder in File Explorer">
+                  <button
+                    type="button"
+                    className="btn-small btn-open-folder"
+                    onClick={handleOpenExtensionFolder}
+                    title="Open extension directory in File Explorer"
+                  >
                     <FolderOpen size={14} />
                     <span>{t.openExtensionFolder}</span>
                   </button>
@@ -1283,67 +1369,217 @@ export default function App() {
             </div>
 
             {/* Browser Selection Tabs */}
-            <div className="browser-tabs">
-              <button
-                className={`browser-tab-btn ${guideBrowser === 'chrome' ? 'active' : ''}`}
-                onClick={() => setGuideBrowser('chrome')}
-              >
-                <Globe size={14} /> Google Chrome
-              </button>
-              <button
-                className={`browser-tab-btn ${guideBrowser === 'edge' ? 'active' : ''}`}
-                onClick={() => setGuideBrowser('edge')}
-              >
-                <Globe size={14} /> Microsoft Edge
-              </button>
-              <button
-                className={`browser-tab-btn ${guideBrowser === 'brave' ? 'active' : ''}`}
-                onClick={() => setGuideBrowser('brave')}
-              >
-                <Globe size={14} /> Brave Browser
-              </button>
+            <div className="guide-browser-section">
+              <div className="browser-tabs-label">Select your browser:</div>
+              <div className="browser-tabs">
+                <button
+                  type="button"
+                  className={`browser-tab-btn ${guideBrowser === 'chrome' ? 'active' : ''}`}
+                  onClick={() => setGuideBrowser('chrome')}
+                >
+                  <Globe size={15} />
+                  <span>Google Chrome</span>
+                </button>
+                <button
+                  type="button"
+                  className={`browser-tab-btn ${guideBrowser === 'edge' ? 'active' : ''}`}
+                  onClick={() => setGuideBrowser('edge')}
+                >
+                  <Globe size={15} />
+                  <span>Microsoft Edge</span>
+                </button>
+                <button
+                  type="button"
+                  className={`browser-tab-btn ${guideBrowser === 'brave' ? 'active' : ''}`}
+                  onClick={() => setGuideBrowser('brave')}
+                >
+                  <Globe size={15} />
+                  <span>Brave Browser</span>
+                </button>
+              </div>
             </div>
 
-            {/* Interactive Steps */}
+            {/* Stepper Timeline */}
             <div className="steps-list">
+              {/* Step 1 */}
               <div className="step-item">
-                <div className="step-number">1</div>
+                <div className="step-number-wrap">
+                  <div className="step-number">1</div>
+                  <div className="step-line" />
+                </div>
                 <div className="step-content">
-                  {t.step1}:{' '}
-                  <span className="step-code">
-                    {guideBrowser === 'chrome' && 'chrome://extensions'}
-                    {guideBrowser === 'edge' && 'edge://extensions'}
-                    {guideBrowser === 'brave' && 'brave://extensions'}
-                  </span>
+                  <div className="step-title">Open Extension Manager</div>
+                  <div className="step-desc">
+                    In your browser, open a new tab and navigate to:
+                  </div>
+                  <div className="step-url-box">
+                    <span className="step-code">{getBrowserExtensionUrl(guideBrowser)}</span>
+                    <button
+                      type="button"
+                      className="step-copy-url-btn"
+                      onClick={() => handleCopyUrl(getBrowserExtensionUrl(guideBrowser))}
+                      title="Copy URL"
+                    >
+                      {copiedUrl ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                      <span>{copiedUrl ? 'Copied!' : 'Copy Address'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
+              {/* Step 2 */}
               <div className="step-item">
-                <div className="step-number">2</div>
+                <div className="step-number-wrap">
+                  <div className="step-number">2</div>
+                  <div className="step-line" />
+                </div>
                 <div className="step-content">
-                  {t.step2}
+                  <div className="step-title">Enable Developer Mode</div>
+                  <div className="step-desc">
+                    Turn ON the <strong>Developer mode</strong> toggle located in the top-right corner.
+                  </div>
+                  <div className="step-badge-preview">
+                    <span className="step-toggle-chip">
+                      <span className="toggle-dot" />
+                      Developer mode: ON
+                    </span>
+                  </div>
                 </div>
               </div>
 
+              {/* Step 3 */}
               <div className="step-item">
-                <div className="step-number">3</div>
+                <div className="step-number-wrap">
+                  <div className="step-number">3</div>
+                  <div className="step-line" />
+                </div>
                 <div className="step-content">
-                  {t.step3}
+                  <div className="step-title">Load Unpacked Extension</div>
+                  <div className="step-desc">
+                    Click the <strong>Load unpacked</strong> button that appears on the top toolbar.
+                  </div>
+                  <div className="step-badge-preview">
+                    <span className="step-btn-chip">
+                      <FolderOpen size={13} />
+                      Load unpacked
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="step-item">
+                <div className="step-number-wrap">
+                  <div className="step-number">4</div>
+                </div>
+                <div className="step-content">
+                  <div className="step-title">Select Extension Folder</div>
+                  <div className="step-desc">
+                    Select the GoDM extension directory path shown above, or click <strong>{t.openExtensionFolder}</strong> to locate it.
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* RPC Bridge Status */}
+            {/* Zero-Config Bridge Status Callout */}
             <div className="guide-features">
-              <Zap size={16} />
-              <span>
-                <strong>Zero Configuration:</strong> The local RPC bridge is active on <code>127.0.0.1:9246</code>. Once loaded, the GoDM extension icon in your browser will automatically detect media streams and capture downloads!
-              </span>
+              <div className="bridge-status-pulse">
+                <span className="pulse-dot" />
+                <span className="pulse-ring" />
+              </div>
+              <div className="bridge-status-text">
+                <div className="bridge-status-title">
+                  <strong>Zero Configuration Required</strong> — Local RPC Bridge Active
+                </div>
+                <div className="bridge-status-desc">
+                  Listening on <code>127.0.0.1:9246</code>. Once loaded, browser downloads and media streams (YouTube, TikTok, Instagram, X) are captured automatically.
+                </div>
+              </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn-primary" onClick={() => setIsGuideOpen(false)}>
-                {t.close}
+            {/* Modal Footer */}
+            <div className="modal-footer guide-modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleOpenExtensionFolder}
+              >
+                <FolderOpen size={15} />
+                <span>{t.openExtensionFolder}</span>
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setIsGuideOpen(false)}
+              >
+                <Check size={16} />
+                <span>{t.close}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Dedicated Language Selection Modal */}
+      {isLangModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsLangModalOpen(false)}>
+          <div
+            className="modal-card lang-modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '640px' }}
+          >
+            <div className="modal-header">
+              <div className="modal-title">
+                <Globe size={20} style={{ color: 'var(--accent)' }} />
+                <span>{t.language} / Select Language</span>
+              </div>
+              <button
+                className="icon-btn-ghost"
+                onClick={() => setIsLangModalOpen(false)}
+                title={t.close}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Choose your preferred interface language. Changes apply immediately and are remembered across sessions.
+            </div>
+
+            <div className="lang-modal-grid">
+              {LANGUAGES.map((item) => {
+                const isSelected = language === item.code;
+                return (
+                  <button
+                    key={item.code}
+                    type="button"
+                    className={`lang-card-btn ${isSelected ? 'selected' : ''}`}
+                    onClick={() => {
+                      setLanguage(item.code);
+                    }}
+                  >
+                    <span className="lang-card-flag">{item.flag}</span>
+                    <div className="lang-card-info">
+                      <span className="lang-card-native">{item.nativeName}</span>
+                      <span className="lang-card-name">
+                        {item.name} {item.isRTL ? '(RTL)' : ''}
+                      </span>
+                    </div>
+                    {isSelected && <Check size={18} color="#10b981" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="modal-footer" style={{ marginTop: '20px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setIsLangModalOpen(false)}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                <Check size={16} />
+                <span>{t.close}</span>
               </button>
             </div>
           </div>
