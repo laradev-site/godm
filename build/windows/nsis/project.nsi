@@ -70,33 +70,21 @@ Section
     !insertmacro wails.files
 
     # 2. CLI utility (godm-cli.exe) if available
-    ${if} ${FileExists} "..\..\..\bin\godm-cli.exe"
-        File "..\..\..\bin\godm-cli.exe"
-    ${endif}
+    File /nonfatal "..\..\..\bin\godm-cli.exe"
 
     # 3. Complete media engine tools: yt-dlp.exe and ffmpeg.exe bundled directly
     SetOutPath "$INSTDIR\tools"
-    ${if} ${FileExists} "..\..\..\tools\yt-dlp.exe"
-        File "..\..\..\tools\yt-dlp.exe"
-    ${elseif} ${FileExists} "..\..\..\bin\tools\yt-dlp.exe"
-        File "..\..\..\bin\tools\yt-dlp.exe"
-    ${endif}
+    File /nonfatal "..\..\..\tools\yt-dlp.exe"
+    File /nonfatal "..\..\..\bin\tools\yt-dlp.exe"
 
-    ${if} ${FileExists} "..\..\..\tools\ffmpeg.exe"
-        File "..\..\..\tools\ffmpeg.exe"
-    ${elseif} ${FileExists} "..\..\..\bin\tools\ffmpeg.exe"
-        File "..\..\..\bin\tools\ffmpeg.exe"
-    ${endif}
+    File /nonfatal "..\..\..\tools\ffmpeg.exe"
+    File /nonfatal "..\..\..\bin\tools\ffmpeg.exe"
 
     # 4. Chrome Extension bundle
     SetOutPath "$INSTDIR\extension"
-    ${if} ${FileExists} "..\..\..\extension\*.*"
-        File /r "..\..\..\extension\*.*"
-    ${endif}
+    File /nonfatal /r "..\..\..\extension\*.*"
     SetOutPath "$INSTDIR"
-    ${if} ${FileExists} "..\..\..\godm-chrome-extension.zip"
-        File "..\..\..\godm-chrome-extension.zip"
-    ${endif}
+    File /nonfatal "..\..\..\godm-chrome-extension.zip"
 
     # 5. Shortcuts
     # SetOutPath sets the "Start in" working directory for created shortcuts
