@@ -198,28 +198,65 @@ export default function App() {
           referer: overrideAuth?.referer ?? authSession?.referer ?? '',
         };
 
+        // Helper: process, normalize, filter, and sort direct streams from browser extension
+        const processDirectStreams = (rawStreams: Array<{ url: string; quality?: string; contentType?: string; size?: number }>) => {
+          const map = new Map<string, { url: string; quality?: string; contentType?: string; size?: number }>();
+          for (const s of rawStreams) {
+            if (!s.url) continue;
+            // Clean URL: strip DASH chunk slicing parameters (bytestart/byteend/range)
+            const clean = s.url.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
+            const existing = map.get(clean);
+            if (!existing || (s.size || 0) > (existing.size || 0)) {
+              map.set(clean, { ...s, url: clean });
+            }
+          }
+          let list = Array.from(map.values());
+          // If we have any stream >= 300 KB, filter out tiny noise chunks (< 80 KB)
+          const hasDecentSize = list.some((s) => (s.size || 0) >= 300 * 1024);
+          if (hasDecentSize) {
+            list = list.filter((s) => (s.size || 0) >= 80 * 1024);
+          }
+          // Sort descending by filesize
+          list.sort((a, b) => (b.size || 0) - (a.size || 0));
+
+          return list.map((s, idx) => {
+            let label = s.quality || '';
+            if (!label) {
+              if ((s.size || 0) >= 10 * 1024 * 1024) label = 'HD Video Stream (Direct)';
+              else if ((s.size || 0) >= 2 * 1024 * 1024) label = 'Video Stream (Direct)';
+              else label = 'Media Stream (Direct)';
+            }
+            return {
+              formatId: `direct_${idx}`,
+              resolution: label,
+              ext: 'mp4',
+              filesize: s.size || 0,
+              label: `⚡ ${label}`,
+              isAudioOnly: false,
+              rawStream: s,
+            };
+          });
+        };
+
         let info: any = null;
         try {
           info = await DownloadService.InspectVideoWithOptions(trimmed, mediaOpts);
         } catch (inspectErr: any) {
-          const streams = overrideAuth?.directStreams || authSession?.directStreams || [];
-          if (streams.length > 0) {
+          const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
+          const processed = processDirectStreams(rawStreams);
+          if (processed.length > 0) {
+            const fallbackTitle = initialFilename && initialFilename !== '(1) Facebook' && initialFilename !== 'Facebook'
+              ? initialFilename.replace(/\.[^/.]+$/, '')
+              : 'Facebook Video';
             info = {
               id: 'direct_stream',
               url: trimmed,
-              title: initialFilename ? initialFilename.replace(/\.[^/.]+$/, '') : 'Direct Stream Video',
+              title: fallbackTitle,
               thumbnail: '',
-              duration: 'N/A',
-              uploader: 'Browser Extension Stream',
-              platform: 'Direct Stream',
-              formats: streams.map((s, idx) => ({
-                formatId: `direct_${idx}`,
-                resolution: s.quality || 'Direct Stream',
-                ext: 'mp4',
-                filesize: s.size || 0,
-                label: `⚡ ${s.quality || 'Direct Stream'} (Instant)`,
-                isAudioOnly: false,
-              })),
+              duration: 'Direct Stream',
+              uploader: 'Browser Sniffer (Authenticated Session)',
+              platform: 'Facebook / Direct Stream',
+              formats: processed,
             };
           } else {
             throw inspectErr;
@@ -227,17 +264,10 @@ export default function App() {
         }
 
         if (info) {
-          const streams = overrideAuth?.directStreams || authSession?.directStreams || [];
-          if (streams.length > 0 && info.formats) {
-            const directFormats = streams.map((s, idx) => ({
-              formatId: `direct_${idx}`,
-              resolution: s.quality || 'Direct Stream',
-              ext: 'mp4',
-              filesize: s.size || 0,
-              label: `⚡ ${s.quality || 'Direct Stream'} (Instant)`,
-              isAudioOnly: false,
-            }));
-            info.formats = [...directFormats, ...info.formats];
+          const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
+          const processed = processDirectStreams(rawStreams);
+          if (processed.length > 0 && info.formats) {
+            info.formats = [...processed, ...info.formats];
           }
 
           setMediaInfo(info);
@@ -535,15 +565,20 @@ export default function App() {
       if (isVideoMode || mediaInfo) {
         // If user picked a direct stream from extension, use accelerated multi-thread download directly
         if (selectedFormat.startsWith('direct_')) {
-          const idx = parseInt(selectedFormat.replace('direct_', ''), 10);
-          const streams = authSession?.directStreams || [];
-          const stream = streams[idx];
-          if (stream && stream.url) {
+          const matchedFmt = mediaInfo?.formats?.find((f) => f.formatId === selectedFormat);
+          let targetUrl = (matchedFmt as any)?.rawStream?.url;
+          if (!targetUrl) {
+            const idx = parseInt(selectedFormat.replace('direct_', ''), 10);
+            const streams = authSession?.directStreams || [];
+            targetUrl = streams[idx]?.url;
+          }
+          if (targetUrl) {
+            const cleanUrl = targetUrl.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
             const headers: Record<string, string> = {};
             if (authSession?.cookies) headers['Cookie'] = authSession.cookies;
             if (authSession?.referer) headers['Referer'] = authSession.referer;
             item = await DownloadService.StartDownloadWithHeaders(
-              stream.url,
+              cleanUrl,
               connections,
               defaultDir,
               customFilename.trim(),

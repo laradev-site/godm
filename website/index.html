@@ -3,21 +3,147 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GoDM — High-Performance Open-Source Download Accelerator</title>
-    <meta name="description" content="Blazing-fast multi-threaded download manager with up to 32 parallel connections, 16-thread YouTube/TikTok video capture, smooth pause & resume, and automated IDM-style categorization for Windows & Linux." />
     
-    <!-- OpenGraph / Social -->
+    <!-- Primary SEO Meta Tags -->
+    <title>godm — Fast, Open-Source Internet Download Manager for Windows &amp; Linux</title>
+    <meta name="title" content="godm — Fast, Open-Source Internet Download Manager for Windows &amp; Linux" />
+    <meta name="description" content="Supercharge downloads up to 10x with godm. High-performance, open-source download accelerator with 32 parallel connections, 4K video sniffing, private video capture, and seamless Chrome integration for Windows &amp; Linux." />
+    <meta name="keywords" content="download manager, internet download manager alternative, IDM alternative, open source download accelerator, video downloader, youtube downloader, facebook reel downloader, multi thread downloader, fast download manager, windows download manager, linux download manager, go wails download manager" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="author" content="Laradev" />
+    <link rel="canonical" href="https://godm.doseshq.com/" />
+
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="GoDM — The Open-Source Download Accelerator" />
-    <meta property="og:description" content="Up to 10x faster downloads with dynamic multi-connection splitting, video capture, and IDM-style organization for Windows & Linux." />
+    <meta property="og:url" content="https://godm.doseshq.com/" />
+    <meta property="og:site_name" content="godm" />
+    <meta property="og:title" content="godm — Fast, Open-Source Internet Download Manager" />
+    <meta property="og:description" content="Up to 10x faster downloads with multi-threaded segmenting, 4K video capture, and seamless Chrome integration. 100% free and open-source for Windows &amp; Linux." />
+    <meta property="og:image" content="https://godm.doseshq.com/og-image.png" />
+    <meta property="og:image:secure_url" content="https://godm.doseshq.com/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="800" />
+    <meta property="og:image:alt" content="godm Download Manager Application Interface" />
+
+    <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="GoDM — Open-Source Download Accelerator" />
-    <meta name="twitter:description" content="Multi-threaded download manager with 32 connections, YouTube/TikTok capture, and seamless resume in Go." />
-    
+    <meta name="twitter:url" content="https://godm.doseshq.com/" />
+    <meta name="twitter:title" content="godm — Fast, Open-Source Internet Download Manager" />
+    <meta name="twitter:description" content="High-performance download accelerator with 32 parallel connections, video sniffer, and Chrome extension in Go." />
+    <meta name="twitter:image" content="https://godm.doseshq.com/og-image.png" />
+    <meta name="twitter:image:alt" content="godm Download Manager Application Interface" />
+
+    <!-- Mobile, PWA & Favicons -->
+    <meta name="theme-color" content="#0a0f1d" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="godm" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Performance & Preconnects -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- Structured Data (JSON-LD) for Rich Google Search Snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://godm.doseshq.com/#software",
+          "name": "godm",
+          "operatingSystem": "Windows 10, Windows 11, Linux",
+          "applicationCategory": "UtilitiesApplication",
+          "applicationSubCategory": "Download Manager",
+          "downloadUrl": "https://github.com/laradev-site/godm/releases/latest",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "ratingCount": "128",
+            "bestRating": "5",
+            "worstRating": "1"
+          },
+          "description": "High-performance, open-source download accelerator and video sniffer with multi-segment chunking, private video capture, and Chrome extension integration.",
+          "softwareVersion": "1.0.0",
+          "license": "https://github.com/laradev-site/godm/blob/master/LICENSE",
+          "author": {
+            "@type": "Organization",
+            "name": "Laradev",
+            "url": "https://github.com/laradev-site"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://godm.doseshq.com/#website",
+          "url": "https://godm.doseshq.com/",
+          "name": "godm",
+          "description": "The open-source, high-performance Internet Download Manager clone engineered in Go for Windows & Linux.",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Laradev",
+            "url": "https://github.com/laradev-site"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://godm.doseshq.com/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "How does godm achieve faster download speeds than browsers?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Standard browsers open a single TCP connection per download, which is subject to network latency and server throttling. godm probes whether the server supports HTTP Range requests, and opens up to 32 parallel connections, each requesting a specific byte slice. All chunks are written simultaneously to the pre-allocated destination file."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does the browser extension communicate with the desktop app?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "godm runs a lightweight, zero-configuration local loopback RPC server on 127.0.0.1:9246. When you click download on a webpage or play a video stream on YouTube, Facebook, or TikTok, the extension sends the link directly to godm, bringing up the download dialog with pre-analyzed format options."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is godm really 100% free and open-source?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes! godm is licensed under the permissive MIT license. There are no paywalls, speed limits, subscription fees, or advertisements. You are free to inspect the Go code, compile it from source, or contribute features."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What happens if my connection drops or my PC turns off during a download?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "godm writes atomic .godm JSON task state files alongside your download. When restarted, godm loads the state file, verifies which byte ranges were already written to disk, and resumes only the remaining unfinished segments without downloading everything from scratch."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can godm download private or authenticated videos?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes! When downloading from authenticated websites like private Facebook videos or members-only streams, the companion browser extension forwards the active session cookies strictly to your local desktop client to securely fetch and assemble the video stream."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

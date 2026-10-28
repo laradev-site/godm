@@ -155,7 +155,7 @@ export default function App() {
 
           <div className="nav-actions">
             <a
-              href="https://github.com/laradev/godm"
+              href="https://github.com/laradev-site/godm"
               target="_blank"
               rel="noreferrer"
               className="btn-secondary"
@@ -195,14 +195,14 @@ export default function App() {
           <div className="hero-cta-group">
             <div style={{ display: 'inline-flex', gap: '8px' }}>
               <a
-                href="https://github.com/laradev/godm/releases/latest"
+                href="https://github.com/laradev-site/godm/releases/latest"
                 className="btn-primary btn-large"
               >
                 <Download size={20} />
                 <span>Download for Windows (x64)</span>
               </a>
               <a
-                href="https://github.com/laradev/godm/releases/latest"
+                href="https://github.com/laradev-site/godm/releases/latest"
                 className="btn-secondary btn-large"
               >
                 <span>Linux (.tar.gz / .deb)</span>
@@ -699,7 +699,7 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/latest"
                   className="btn-primary"
                   style={{ justifyContent: 'center' }}
                 >
@@ -707,7 +707,7 @@ export default function App() {
                   <span>Download .EXE (Installer)</span>
                 </a>
                 <a
-                  href="https://github.com/laradev/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/latest"
                   className="btn-secondary"
                   style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                 >
@@ -729,7 +729,7 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/latest"
                   className="btn-primary"
                   style={{ justifyContent: 'center' }}
                 >
@@ -737,7 +737,7 @@ export default function App() {
                   <span>Download .TAR.GZ</span>
                 </a>
                 <a
-                  href="https://github.com/laradev/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/latest"
                   className="btn-secondary"
                   style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                 >
@@ -759,7 +759,7 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev/godm/tree/master/extension"
+                  href="https://github.com/laradev-site/godm/tree/master/extension"
                   target="_blank"
                   rel="noreferrer"
                   className="btn-primary"
@@ -769,7 +769,7 @@ export default function App() {
                   <span>Get Extension</span>
                 </a>
                 <a
-                  href="https://github.com/laradev/godm#browser-extension-installation-guide"
+                  href="https://github.com/laradev-site/godm#browser-extension-installation-guide"
                   target="_blank"
                   rel="noreferrer"
                   className="btn-secondary"
@@ -852,29 +852,30 @@ export default function App() {
             <div>
               <div className="footer-col-title">Downloads</div>
               <ul className="footer-links">
-                <li><a href="https://github.com/laradev/godm/releases/latest">Windows Installer (.exe)</a></li>
-                <li><a href="https://github.com/laradev/godm/releases/latest">Windows Portable (.zip)</a></li>
-                <li><a href="https://github.com/laradev/godm/releases/latest">Linux Package (.deb / .tar.gz)</a></li>
-                <li><a href="https://github.com/laradev/godm/releases/latest">Standalone CLI Binary</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest">Windows Installer (.exe)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest">Windows Portable (.zip)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest">Linux Package (.deb / .tar.gz)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest">Standalone CLI Binary</a></li>
               </ul>
             </div>
 
             <div>
               <div className="footer-col-title">Resources</div>
               <ul className="footer-links">
-                <li><a href="https://github.com/laradev/godm">GitHub Repository</a></li>
-                <li><a href="https://github.com/laradev/godm/tree/master/extension">Browser Extension</a></li>
-                <li><a href="https://github.com/laradev/godm/blob/master/README.md">Documentation</a></li>
-                <li><a href="https://github.com/laradev/godm/releases">Release Notes</a></li>
+                <li><a href="https://github.com/laradev-site/godm">GitHub Repository</a></li>
+                <li><a href="https://github.com/laradev-site/godm/tree/master/extension">Browser Extension</a></li>
+                <li><a href="https://github.com/laradev-site/godm/blob/master/PRIVACY.md">Privacy Policy</a></li>
+                <li><a href="https://github.com/laradev-site/godm/blob/master/README.md">Documentation</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases">Release Notes</a></li>
               </ul>
             </div>
 
             <div>
               <div className="footer-col-title">Community</div>
               <ul className="footer-links">
-                <li><a href="https://github.com/laradev/godm/issues">Report an Issue</a></li>
-                <li><a href="https://github.com/laradev/godm/pulls">Submit a Pull Request</a></li>
-                <li><a href="https://github.com/laradev/godm/blob/master/LICENSE">MIT License</a></li>
+                <li><a href="https://github.com/laradev-site/godm/issues">Report an Issue</a></li>
+                <li><a href="https://github.com/laradev-site/godm/pulls">Submit a Pull Request</a></li>
+                <li><a href="https://github.com/laradev-site/godm/blob/master/LICENSE">MIT License</a></li>
               </ul>
             </div>
           </div>

@@ -29,6 +29,26 @@
     }
   });
 
+  // Helper: clean & normalize video URL (strip DASH chunk slicing)
+  function cleanMediaUrl(raw) {
+    if (!raw) return '';
+    const decoded = raw
+      .replace(/\\u0025/g, '%')
+      .replace(/\\u0026/g, '&')
+      .replace(/\\\//g, '/')
+      .replace(/\\/g, '')
+      .replace(/&amp;/g, '&');
+    try {
+      const u = new URL(decoded);
+      u.searchParams.delete('bytestart');
+      u.searchParams.delete('byteend');
+      u.searchParams.delete('range');
+      return u.toString();
+    } catch {
+      return decoded.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
+    }
+  }
+
   // Extract direct stream URLs for Facebook (including private reels / videos)
   function extractFacebookDirectUrls() {
     const direct = [];
@@ -37,34 +57,43 @@
       for (const s of scripts) {
         const content = s.textContent;
         if (!content) continue;
-        if (!content.includes('playable_url') && !content.includes('browser_native')) continue;
 
-        // Extract HD
-        const hdMatch = content.match(/"(?:browser_native_hd_url|playable_url_quality_hd)"\s*:\s*"([^"]+)"/);
-        if (hdMatch && hdMatch[1]) {
-          const decoded = hdMatch[1].replace(/\\u0025/g, '%').replace(/\\u0026/g, '&').replace(/\\\//g, '/');
-          if (!direct.some((item) => item.url === decoded)) {
-            direct.push({ url: decoded, quality: 'HD Direct Stream (1080p/720p)', contentType: 'video/mp4' });
+        // 1. High Definition (HD) Streams
+        const hdMatches = content.matchAll(/"(?:browser_native_hd_url|playable_url_quality_hd|hd_src|hd_src_no_ratelimit)"\s*:\s*"([^"]+)"/g);
+        for (const m of hdMatches) {
+          const clean = cleanMediaUrl(m[1]);
+          if (clean && !direct.some((item) => item.url === clean)) {
+            direct.push({ url: clean, quality: 'HD Video (1080p/720p)', contentType: 'video/mp4' });
           }
         }
 
-        // Extract SD
-        const sdMatch = content.match(/"(?:browser_native_sd_url|playable_url)"\s*:\s*"([^"]+)"/);
-        if (sdMatch && sdMatch[1]) {
-          const decoded = sdMatch[1].replace(/\\u0025/g, '%').replace(/\\u0026/g, '&').replace(/\\\//g, '/');
-          if (!direct.some((item) => item.url === decoded)) {
-            direct.push({ url: decoded, quality: 'SD Direct Stream (480p/360p)', contentType: 'video/mp4' });
+        // 2. Standard Definition (SD) Streams
+        const sdMatches = content.matchAll(/"(?:browser_native_sd_url|playable_url|sd_src|sd_src_no_ratelimit|progressive_download_url)"\s*:\s*"([^"]+)"/g);
+        for (const m of sdMatches) {
+          const clean = cleanMediaUrl(m[1]);
+          if (clean && !direct.some((item) => item.url === clean)) {
+            direct.push({ url: clean, quality: 'SD Video (480p/360p)', contentType: 'video/mp4' });
+          }
+        }
+
+        // 3. DASH Representation Base URLs
+        const baseMatches = content.matchAll(/"base_url"\s*:\s*"(https?:\\\/\\\/[^"]+fbcdn\.net[^"]+)"/g);
+        for (const m of baseMatches) {
+          const clean = cleanMediaUrl(m[1]);
+          if (clean && !direct.some((item) => item.url === clean)) {
+            direct.push({ url: clean, quality: 'Direct Video Stream', contentType: 'video/mp4' });
           }
         }
       }
 
-      // Check video elements directly
+      // 4. Check video elements directly
       const videos = document.querySelectorAll('video');
       for (const v of videos) {
         const src = v.currentSrc || v.src;
         if (src && src.startsWith('http') && src.includes('fbcdn.net')) {
-          if (!direct.some((item) => item.url === src)) {
-            direct.push({ url: src, quality: 'Direct CDN Stream', contentType: 'video/mp4' });
+          const clean = cleanMediaUrl(src);
+          if (clean && !direct.some((item) => item.url === clean)) {
+            direct.push({ url: clean, quality: 'Direct Video Stream', contentType: 'video/mp4' });
           }
         }
       }

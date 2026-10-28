@@ -77,54 +77,121 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabMediaStreams.delete(tabId);
 });
 
+// Helper: normalize media URLs by stripping chunk slicing parameters (bytestart/byteend/range)
+function normalizeMediaUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    u.searchParams.delete('bytestart');
+    u.searchParams.delete('byteend');
+    u.searchParams.delete('range');
+    return u.toString();
+  } catch {
+    return rawUrl.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
+  }
+}
+
 // Media Stream Sniffer: intercept video/audio streams in real time
 chrome.webRequest.onResponseStarted.addListener(
   (details) => {
     if (details.tabId < 0) return;
 
-    const url = details.url;
-    if (!url || url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('chrome:')) {
+    const rawUrl = details.url;
+    if (!rawUrl || rawUrl.startsWith('blob:') || rawUrl.startsWith('data:') || rawUrl.startsWith('chrome:')) {
+      return;
+    }
+
+    // Exclude static assets, scripts, stylesheets, and telemetry
+    if (
+      rawUrl.includes('/rsrc.php/') ||
+      rawUrl.includes('/static.xx.') ||
+      rawUrl.includes('.js') ||
+      rawUrl.includes('.css') ||
+      rawUrl.includes('analytics') ||
+      rawUrl.includes('logging') ||
+      rawUrl.includes('/ajax/') ||
+      rawUrl.includes('google-analytics') ||
+      rawUrl.includes('doubleclick')
+    ) {
       return;
     }
 
     let contentType = '';
     let contentLength = 0;
+    let contentRangeTotal = 0;
     if (details.responseHeaders) {
       for (const h of details.responseHeaders) {
         const name = h.name.toLowerCase();
         if (name === 'content-type') contentType = h.value.toLowerCase();
         if (name === 'content-length') contentLength = parseInt(h.value, 10) || 0;
+        if (name === 'content-range') {
+          // Format: bytes 0-1024/15849200 -> total is 15849200
+          const match = h.value.match(/\/(\d+)/);
+          if (match && match[1]) {
+            contentRangeTotal = parseInt(match[1], 10) || 0;
+          }
+        }
       }
     }
 
-    const isVideoType = contentType.includes('video/') ||
+    // Disregard non-media content types
+    if (
+      contentType.includes('text/') ||
+      contentType.includes('image/') ||
+      contentType.includes('javascript') ||
+      contentType.includes('json')
+    ) {
+      return;
+    }
+
+    const isVideoType =
+      contentType.includes('video/') ||
+      contentType.includes('audio/') ||
       contentType.includes('application/vnd.apple.mpegurl') ||
       contentType.includes('application/dash+xml');
 
-    const isVideoUrl = /\.(mp4|m4v|webm|mkv|m3u8|mpd)(\?|$)/i.test(url) ||
-      url.includes('.fbcdn.net/v/') ||
-      url.includes('.fbcdn.net/rsrc.php/v') ||
-      (url.includes('fbcdn.net') && isVideoType);
+    const isVideoUrl =
+      /\.(mp4|m4v|webm|mkv|m3u8|mpd)(\?|$)/i.test(rawUrl) ||
+      (rawUrl.includes('fbcdn.net') && (rawUrl.includes('/v/') || isVideoType));
 
-    if (isVideoType || isVideoUrl) {
-      const list = tabMediaStreams.get(details.tabId) || [];
-      if (!list.some((item) => item.url === url)) {
-        const streamItem = {
-          url,
-          contentType: contentType || 'video/mp4',
-          size: contentLength,
-          timestamp: Date.now(),
-        };
-        list.push(streamItem);
-        if (list.length > 25) list.shift();
-        tabMediaStreams.set(details.tabId, list);
+    if (!isVideoType && !isVideoUrl) {
+      return;
+    }
 
-        // Notify tab content script
-        chrome.tabs.sendMessage(details.tabId, {
-          action: 'media-detected',
-          stream: streamItem,
-        }).catch(() => {});
+    // Normalize URL: strip byte-range chunk slicing parameters
+    const cleanUrl = normalizeMediaUrl(rawUrl);
+
+    // Calculate real size: prefer full Content-Range length over chunk length
+    const realSize = contentRangeTotal > 0 ? contentRangeTotal : contentLength;
+
+    // Filter out tiny snippets (< 100 KB with no Content-Range and not a manifest)
+    if (realSize < 100 * 1024 && contentRangeTotal === 0 && !cleanUrl.includes('.m3u8') && !cleanUrl.includes('.mpd')) {
+      return;
+    }
+
+    const list = tabMediaStreams.get(details.tabId) || [];
+    const existingIndex = list.findIndex((item) => item.url === cleanUrl);
+
+    if (existingIndex >= 0) {
+      // If we got a better size estimate from another chunk, update it
+      if (realSize > list[existingIndex].size) {
+        list[existingIndex].size = realSize;
       }
+    } else {
+      const streamItem = {
+        url: cleanUrl,
+        contentType: contentType || 'video/mp4',
+        size: realSize,
+        timestamp: Date.now(),
+      };
+      list.push(streamItem);
+      if (list.length > 25) list.shift();
+      tabMediaStreams.set(details.tabId, list);
+
+      // Notify tab content script
+      chrome.tabs.sendMessage(details.tabId, {
+        action: 'media-detected',
+        stream: streamItem,
+      }).catch(() => {});
     }
   },
   { urls: ['<all_urls>'] },
