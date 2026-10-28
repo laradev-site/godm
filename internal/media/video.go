@@ -107,6 +107,17 @@ func getJSRuntimeArg() []string {
 	return nil
 }
 
+// GetWritableToolsDir returns a guaranteed writable user directory for tools (%APPDATA%\godm\tools or ~/.config/godm/tools).
+func GetWritableToolsDir() string {
+	configDir, err := os.UserConfigDir()
+	if err != nil || configDir == "" {
+		configDir = os.TempDir()
+	}
+	dir := filepath.Join(configDir, "godm", "tools")
+	_ = os.MkdirAll(dir, 0755)
+	return dir
+}
+
 // GetBinaryPath finds yt-dlp (or yt-dlp.exe on Windows) in local tools, config dir, or PATH.
 func GetBinaryPath() string {
 	binName := "yt-dlp"
@@ -114,16 +125,7 @@ func GetBinaryPath() string {
 		binName = "yt-dlp.exe"
 	}
 
-	// 1. Check local tools folder in current/project dir
-	localTools := filepath.Join(".", "tools", binName)
-	if fileExists(localTools) {
-		if abs, err := filepath.Abs(localTools); err == nil {
-			return abs
-		}
-		return localTools
-	}
-
-	// 2. Check exe dir, sibling tools, and parent tools (e.g. when exe is in bin/ or .task/)
+	// 1. Check next to running executable, sibling tools, and parent tools (bundled by installer or portable package)
 	if exePath, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exePath)
 		if sibling := filepath.Join(dir, "tools", binName); fileExists(sibling) {
@@ -142,12 +144,21 @@ func GetBinaryPath() string {
 		}
 	}
 
-	// 3. Check AppData/Config/godm/tools
-	if appData, err := os.UserConfigDir(); err == nil {
-		appDataPath := filepath.Join(appData, "godm", "tools", binName)
-		if fileExists(appDataPath) {
-			return appDataPath
+	// 2. Check writable user config directory (%APPDATA%\godm\tools)
+	if writableDir := GetWritableToolsDir(); writableDir != "" {
+		candidate := filepath.Join(writableDir, binName)
+		if fileExists(candidate) {
+			return candidate
 		}
+	}
+
+	// 3. Check local tools folder in current/project dir
+	localTools := filepath.Join(".", "tools", binName)
+	if fileExists(localTools) {
+		if abs, err := filepath.Abs(localTools); err == nil {
+			return abs
+		}
+		return localTools
 	}
 
 	// 4. On Linux, check common system locations
@@ -174,16 +185,7 @@ func GetFFmpegPath() string {
 		binName = "ffmpeg.exe"
 	}
 
-	// 1. Local tools folder in current/project dir
-	localTools := filepath.Join(".", "tools", binName)
-	if fileExists(localTools) {
-		if abs, err := filepath.Abs(localTools); err == nil {
-			return abs
-		}
-		return localTools
-	}
-
-	// 2. Sibling in exe dir, next to exe, and parent tools (e.g. when exe is in bin/ or .task/)
+	// 1. Check next to running executable, sibling tools, and parent tools (bundled by installer or portable package)
 	if exePath, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exePath)
 		if sibling := filepath.Join(dir, "tools", binName); fileExists(sibling) {
@@ -202,12 +204,21 @@ func GetFFmpegPath() string {
 		}
 	}
 
-	// 3. AppData / UserConfigDir
-	if appData, err := os.UserConfigDir(); err == nil {
-		appDataPath := filepath.Join(appData, "godm", "tools", binName)
-		if fileExists(appDataPath) {
-			return appDataPath
+	// 2. Check writable user config directory (%APPDATA%\godm\tools)
+	if writableDir := GetWritableToolsDir(); writableDir != "" {
+		candidate := filepath.Join(writableDir, binName)
+		if fileExists(candidate) {
+			return candidate
 		}
+	}
+
+	// 3. Local tools folder in current/project dir
+	localTools := filepath.Join(".", "tools", binName)
+	if fileExists(localTools) {
+		if abs, err := filepath.Abs(localTools); err == nil {
+			return abs
+		}
+		return localTools
 	}
 
 	// 4. Common OS locations
@@ -241,7 +252,7 @@ func GetFFmpegPath() string {
 	return ""
 }
 
-// EnsureEngine verifies that yt-dlp is installed, downloading it if necessary.
+// EnsureEngine verifies that yt-dlp is installed, downloading it if necessary into safe user storage.
 func EnsureEngine(progressCb func(pct float64)) (string, error) {
 	existing := GetBinaryPath()
 	if existing != "" {
@@ -257,12 +268,8 @@ func EnsureEngine(progressCb func(pct float64)) (string, error) {
 		downloadURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
 	}
 
-	// Download to local tools directory
-	targetDir := filepath.Join(".", "tools")
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create tools dir: %w", err)
-	}
-
+	// Download to writable user config directory (%APPDATA%\godm\tools) to prevent any access/permission errors
+	targetDir := GetWritableToolsDir()
 	targetPath := filepath.Join(targetDir, binName)
 
 	resp, err := http.Get(downloadURL)

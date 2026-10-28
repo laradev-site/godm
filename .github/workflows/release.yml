@@ -86,6 +86,35 @@ jobs:
           wails3 build
           go build -trimpath -ldflags="-w -s" -o bin/godm-cli.exe ./cmd/godm
 
+      - name: Fetch Tools for Packaging
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "tools" -Force | Out-Null
+          if (-not (Test-Path "tools/yt-dlp.exe")) {
+            Write-Host "Downloading yt-dlp.exe..."
+            Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "tools/yt-dlp.exe"
+          }
+          if (-not (Test-Path "tools/ffmpeg.exe")) {
+            Write-Host "Downloading ffmpeg.exe..."
+            Invoke-WebRequest -Uri "https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip" -OutFile "ffmpeg.zip"
+            Expand-Archive -Path "ffmpeg.zip" -DestinationPath "ffmpeg_extracted" -Force
+            $ffmpegExe = Get-ChildItem -Path "ffmpeg_extracted" -Filter "ffmpeg.exe" -Recurse | Select-Object -First 1
+            if ($ffmpegExe) {
+              Copy-Item $ffmpegExe.FullName -Destination "tools/ffmpeg.exe"
+            }
+            Remove-Item "ffmpeg.zip", "ffmpeg_extracted" -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Build Windows Installer
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.version }}"
+          $tag = "${{ steps.ver.outputs.tag }}"
+          
+          cd build/windows/nsis
+          & makensis "-DINFO_PRODUCTVERSION=$ver" "-DARG_WAILS_AMD64_BINARY=$PWD/../../../bin/godm.exe" "project.nsi"
+          cd ../../..
+
       - name: Package Windows Assets
         shell: pwsh
         run: |
@@ -95,13 +124,22 @@ jobs:
           New-Item -ItemType Directory -Path "dist_win", "artifacts" -Force | Out-Null
           Copy-Item "bin/godm.exe" "dist_win/"
           Copy-Item "bin/godm-cli.exe" "dist_win/"
+          if (Test-Path "tools") { Copy-Item "tools" "dist_win/tools" -Recurse }
           Copy-Item "extension" "dist_win/extension" -Recurse
+          if (Test-Path "godm-chrome-extension.zip") { Copy-Item "godm-chrome-extension.zip" "dist_win/" }
           if (Test-Path "README.md") { Copy-Item "README.md" "dist_win/" }
           if (Test-Path "LICENSE") { Copy-Item "LICENSE" "dist_win/" }
           
           Compress-Archive -Path "dist_win/*" -DestinationPath "artifacts/$zipName" -Force
           Copy-Item "bin/godm.exe" "artifacts/"
           Copy-Item "bin/godm-cli.exe" "artifacts/"
+
+          # Copy NSIS installer into artifacts
+          $inst = Get-ChildItem -Path "bin" -Filter "*installer*.exe" | Select-Object -First 1
+          if ($inst) {
+            Copy-Item $inst.FullName "artifacts/godm-$tag-windows-installer.exe"
+            Copy-Item $inst.FullName "artifacts/godm-setup.exe"
+          }
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
