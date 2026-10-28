@@ -18,7 +18,7 @@ import {
   ExternalLink,
   Cpu,
   Globe,
-  Sparkles,
+  FileText,
 } from 'lucide-react';
 
 function GithubIcon({ size = 16 }: { size?: number }) {
@@ -152,9 +152,6 @@ export default function App() {
 
   return (
     <div className="landing-root">
-      <div className="bg-glow-top" />
-      <div className="bg-grid" />
-
       {/* 1. Header / Navbar */}
       <nav className="navbar">
         <div className="container nav-container">
@@ -197,14 +194,9 @@ export default function App() {
       {/* 2. Hero Section */}
       <header className="hero-section">
         <div className="container">
-          <div className="hero-pill">
-            <Sparkles size={14} color="#60a5fa" />
-            <span>Open-Source • Native Go Engine • Up to 32 Parallel Connections</span>
-          </div>
-
           <h1 className="hero-title">
             The Blazing Fast <br />
-            <span className="gradient-text">Download Accelerator</span> for Desktop & CLI
+            <span className="hero-highlight">Download Accelerator</span> for Desktop & CLI
           </h1>
 
           <p className="hero-subtitle">
@@ -231,12 +223,26 @@ export default function App() {
             </div>
           </div>
 
-          <div className="hero-os-note">
-            <span>✓ Windows 10/11</span>
-            <span>•</span>
-            <span>✓ Linux (Ubuntu, Debian, Fedora, Arch)</span>
-            <span>•</span>
-            <span>✓ 100% Free & Open Source (MIT)</span>
+          <div className="hero-spec-strip">
+            <div className="spec-item">
+              <span className="spec-dot" />
+              <span>32 TCP STREAMS</span>
+            </div>
+            <div className="spec-divider">•</div>
+            <div className="spec-item">
+              <span className="spec-dot" />
+              <span>NATIVE GO ENGINE</span>
+            </div>
+            <div className="spec-divider">•</div>
+            <div className="spec-item">
+              <span className="spec-dot" />
+              <span>ATOMIC .GODM RESUME</span>
+            </div>
+            <div className="spec-divider">•</div>
+            <div className="spec-item">
+              <span className="spec-dot" />
+              <span>100% OPEN SOURCE (MIT)</span>
+            </div>
           </div>
 
           {/* Quick curl installer snippet */}
@@ -292,28 +298,46 @@ export default function App() {
               <div className="mock-sidebar">
                 <div className="mock-sidebar-title">Categories</div>
                 <div className="mock-category-item active">
-                  <span>All Downloads</span>
-                  <span style={{ fontSize: '0.7rem', color: '#60a5fa' }}>4</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FolderOpen size={13} color="#60a5fa" />
+                    <span>All Downloads</span>
+                  </div>
+                  <span className="cat-count">4</span>
                 </div>
                 <div className="mock-category-item">
-                  <span>📁 Compressed</span>
-                  <span style={{ fontSize: '0.7rem' }}>2</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FolderArchive size={13} />
+                    <span>Compressed</span>
+                  </div>
+                  <span className="cat-count">2</span>
                 </div>
                 <div className="mock-category-item">
-                  <span>🎬 Video</span>
-                  <span style={{ fontSize: '0.7rem' }}>1</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Video size={13} />
+                    <span>Video</span>
+                  </div>
+                  <span className="cat-count">1</span>
                 </div>
                 <div className="mock-category-item">
-                  <span>🎵 Music</span>
-                  <span style={{ fontSize: '0.7rem' }}>0</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Music size={13} />
+                    <span>Music</span>
+                  </div>
+                  <span className="cat-count">0</span>
                 </div>
                 <div className="mock-category-item">
-                  <span>💻 Programs</span>
-                  <span style={{ fontSize: '0.7rem' }}>1</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Cpu size={13} />
+                    <span>Programs</span>
+                  </div>
+                  <span className="cat-count">1</span>
                 </div>
                 <div className="mock-category-item">
-                  <span>📄 Documents</span>
-                  <span style={{ fontSize: '0.7rem' }}>0</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FileText size={13} />
+                    <span>Documents</span>
+                  </div>
+                  <span className="cat-count">0</span>
                 </div>
               </div>
 
@@ -425,7 +449,6 @@ export default function App() {
       {/* 4. Core Architecture Features */}
       <section className="section" id="features">
         <div className="container">
-          <div className="section-tag">High Performance Architecture</div>
           <h2 className="section-title">Built From The Ground Up for Speed</h2>
           <p className="section-subtitle">
             Most downloaders download files sequentially. GoDM splits files into dynamic multi-threaded byte ranges and writes directly to pre-allocated disk sectors.
@@ -500,7 +523,6 @@ export default function App() {
         <div className="container">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', alignItems: 'center' }}>
             <div>
-              <div className="section-tag">Universal Streaming Media</div>
               <h2 className="section-title">Download Any Video in 4K with 16 Concurrent Threads</h2>
               <p className="section-subtitle" style={{ marginBottom: '24px' }}>
                 Stop waiting for slow single-connection video streams. GoDM automatically inspects video resolutions, merges pristine video with highest-quality audio streams, or extracts MP3s with a single click.
@@ -568,7 +590,6 @@ export default function App() {
       {/* 6. Comparison Table (GoDM vs IDM vs Browser) */}
       <section className="section" id="comparison">
         <div className="container">
-          <div className="section-tag">Feature Comparison</div>
           <h2 className="section-title">Why Developers & Power Users Choose GoDM</h2>
           <p className="section-subtitle">
             See how GoDM compares to legacy proprietary download software.
@@ -622,10 +643,10 @@ export default function App() {
                   <td>Single stream write</td>
                 </tr>
                 <tr>
-                  <td>Modern Dark UI</td>
-                  <td className="highlight">Yes (Modern glassmorphic)</td>
-                  <td>No (Windows 98 aesthetic)</td>
-                  <td>Minimalist</td>
+                  <td>Interface & Diagnostics</td>
+                  <td className="highlight">Engineered Dark UI (Live thread inspector)</td>
+                  <td>Legacy Windows 98 interface</td>
+                  <td>Minimalist single-bar</td>
                 </tr>
                 <tr>
                   <td>RAM Footprint</td>
@@ -644,7 +665,6 @@ export default function App() {
         <div className="container">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', alignItems: 'center' }}>
             <div>
-              <div className="section-tag">Developers & Automation</div>
               <h2 className="section-title">Automate Anywhere With The Standalone CLI</h2>
               <p className="section-subtitle" style={{ marginBottom: '24px' }}>
                 Run high-speed accelerated downloads directly from your terminal, bash scripts, CI/CD jobs, or headless Linux servers without running any graphical interface.
@@ -700,7 +720,6 @@ export default function App() {
       {/* 8. Download Matrix */}
       <section className="section" id="download">
         <div className="container" style={{ textAlign: 'center' }}>
-          <div className="section-tag">Get Started Today</div>
           <h2 className="section-title">Download GoDM For Your Operating System</h2>
           <p className="section-subtitle" style={{ margin: '0 auto 40px' }}>
             Available as a native desktop application with full GUI or as a standalone CLI tool.
@@ -807,7 +826,6 @@ export default function App() {
       {/* 9. FAQ Section */}
       <section className="section" id="faq">
         <div className="container">
-          <div className="section-tag" style={{ textAlign: 'center' }}>Frequently Asked Questions</div>
           <h2 className="section-title" style={{ textAlign: 'center' }}>Everything You Need To Know</h2>
           <p className="section-subtitle" style={{ margin: '0 auto 40px', textAlign: 'center' }}>
             Answers to common questions regarding performance, browser integration, and open source licensing.
