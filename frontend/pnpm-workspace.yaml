@@ -1,2 +1,0 @@
-minimumReleaseAgeExclude:
-  - '@wailsio/runtime@3.0.0'
