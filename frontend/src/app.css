@@ -27,6 +27,34 @@
   padding: 0;
 }
 
+/* Universal Custom Dark Scrollbar for entire WebView2 app */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
+}
+
 html, body {
   width: 100%;
   height: 100%;
@@ -188,13 +216,13 @@ html, body {
   border-radius: 6px;
   padding: 4px 10px;
   gap: 6px;
-  width: 180px;
+  width: 140px;
   transition: border-color 0.2s, width 0.2s;
 }
 
 .search-box:focus-within {
   border-color: var(--accent);
-  width: 220px;
+  width: 190px;
 }
 
 .search-input {
@@ -266,6 +294,7 @@ html, body {
   background: rgba(59, 130, 246, 0.15);
   color: #60a5fa;
   font-weight: 600;
+  box-shadow: inset 3px 0 0 #3b82f6;
 }
 
 .sidebar-folder-icon {
@@ -299,6 +328,7 @@ html, body {
   padding: 1px 6px;
   border-radius: 10px;
   font-family: var(--font-mono);
+  color: var(--text-muted);
 }
 
 .sidebar-item.active .sidebar-badge {
@@ -319,7 +349,8 @@ html, body {
 
 .table-container {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .idm-table {
@@ -399,37 +430,39 @@ html, body {
 
 /* Status Pill */
 .status-pill {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 0.675rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  display: inline-block;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .status-downloading {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(16, 185, 129, 0.12);
   color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
 .status-paused {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.12);
   color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgba(245, 158, 11, 0.28);
 }
 
 .status-completed {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.28);
 }
 
 .status-error {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.12);
   color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.28);
 }
 
 /* Table Mini Progress */
@@ -442,24 +475,29 @@ html, body {
 
 .table-progress-track {
   flex: 1;
-  height: 6px;
-  background: #1e293b;
-  border-radius: 3px;
+  height: 7px;
+  background: rgba(30, 41, 59, 0.8);
+  border-radius: 4px;
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .table-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #10b981);
-  border-radius: 3px;
+  background: linear-gradient(90deg, #0284c7, #38bdf8, #10b981);
+  border-radius: 4px;
+  transition: width 0.25s ease;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
 }
 
 .table-progress-fill.paused {
   background: #f59e0b;
+  box-shadow: none;
 }
 
 .table-progress-fill.error {
   background: #ef4444;
+  box-shadow: none;
 }
 
 .table-progress-text {
@@ -490,7 +528,7 @@ html, body {
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  height: 250px;
+  height: 205px;
   flex-shrink: 0;
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
   transition: height 0.2s ease;
@@ -1574,6 +1612,8 @@ html, body {
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .lang-btn:hover {
