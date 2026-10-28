@@ -90,7 +90,12 @@ function normalizeMediaUrl(rawUrl) {
     u.searchParams.delete('chunk');
     return u.toString();
   } catch {
-    return rawUrl.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
+    let res = rawUrl.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
+    if (!res.includes('?') && res.includes('&')) {
+      const idx = res.indexOf('&');
+      res = res.substring(0, idx) + '?' + res.substring(idx + 1);
+    }
+    return res;
   }
 }
 
@@ -251,11 +256,25 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Helper to extract domain from URL
+// Helper to extract domain and root domain from URL
 function getDomain(rawUrl) {
   try {
     const parsed = new URL(rawUrl);
     return parsed.hostname.replace(/^(www|m)\./, '');
+  } catch {
+    return '';
+  }
+}
+
+function getRootDomain(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    const host = parsed.hostname.toLowerCase();
+    const parts = host.split('.');
+    if (parts.length >= 2) {
+      return parts.slice(-2).join('.');
+    }
+    return host;
   } catch {
     return '';
   }
@@ -267,6 +286,14 @@ async function getCookiesForUrl(url, pageUrl) {
     const urlsToFetch = [];
     if (pageUrl) urlsToFetch.push(pageUrl);
     if (url && url !== pageUrl && url.startsWith('http')) urlsToFetch.push(url);
+
+    const isFacebook = (pageUrl && pageUrl.includes('facebook.com')) || (url && url.includes('facebook.com'));
+    if (isFacebook) {
+      urlsToFetch.push('https://www.facebook.com/');
+      urlsToFetch.push('https://facebook.com/');
+      urlsToFetch.push('https://web.facebook.com/');
+      urlsToFetch.push('https://m.facebook.com/');
+    }
 
     let allCookies = [];
     for (const u of urlsToFetch) {
@@ -280,16 +307,24 @@ async function getCookiesForUrl(url, pageUrl) {
       }
     }
 
-    // Also get cookies for primary domain
-    const domain = getDomain(pageUrl || url);
-    if (domain) {
+    // Also get cookies for primary root domain
+    const rootDomain = getRootDomain(pageUrl || url);
+    const primaryDomain = getDomain(pageUrl || url);
+    const domainsToQuery = new Set([rootDomain, primaryDomain]);
+    if (isFacebook) {
+      domainsToQuery.add('facebook.com');
+      domainsToQuery.add('.facebook.com');
+    }
+
+    for (const d of domainsToQuery) {
+      if (!d) continue;
       try {
-        const domainCookies = await chrome.cookies.getAll({ domain });
+        const domainCookies = await chrome.cookies.getAll({ domain: d });
         if (domainCookies && domainCookies.length > 0) {
           allCookies.push(...domainCookies);
         }
       } catch (e) {
-        console.debug('Failed to get cookies for domain:', domain, e);
+        console.debug('Failed to get cookies for domain:', d, e);
       }
     }
 
@@ -309,7 +344,7 @@ async function getCookiesForUrl(url, pageUrl) {
     const futureExpiry = Math.round(Date.now() / 1000) + 86400 * 365;
     for (const c of uniqueCookies) {
       const d = c.domain.startsWith('.') ? c.domain : `.${c.domain}`;
-      const flag = c.hostOnly ? 'FALSE' : 'TRUE';
+      const flag = 'TRUE';
       const path = c.path || '/';
       const secure = c.secure ? 'TRUE' : 'FALSE';
       const expiry = c.expirationDate ? Math.round(c.expirationDate) : futureExpiry;
@@ -320,7 +355,7 @@ async function getCookiesForUrl(url, pageUrl) {
       cookieHeader,
       netscapeJar,
       count: uniqueCookies.length,
-      domain,
+      domain: rootDomain || primaryDomain,
     };
   } catch (err) {
     console.error('getCookiesForUrl error:', err);
@@ -335,8 +370,8 @@ async function syncCookiesForUrl(url, force = true) {
 
   const now = Date.now();
   const lastSync = lastCookieSync.get(domain) || 0;
-  if (!force && now - lastSync < 10 * 60 * 1000) {
-    return true; // Already synced recently
+  if (!force && now - lastSync < 60 * 1000) {
+    return true; // Synced within the last minute
   }
 
   const cookieData = await getCookiesForUrl(url);

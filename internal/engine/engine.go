@@ -47,6 +47,18 @@ func NewHTTPClient(cfg *config.Config) *http.Client {
 	return &http.Client{
 		Transport: transport,
 		Timeout:   cfg.Timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			for k, v := range cfg.Headers {
+				req.Header.Set(k, v)
+			}
+			if cfg.UserAgent != "" {
+				req.Header.Set("User-Agent", cfg.UserAgent)
+			}
+			return nil
+		},
 	}
 }
 

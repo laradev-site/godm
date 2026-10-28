@@ -35,6 +35,9 @@
     const decoded = raw
       .replace(/\\u0025/g, '%')
       .replace(/\\u0026/g, '&')
+      .replace(/\\u003D/g, '=')
+      .replace(/\\u003F/g, '?')
+      .replace(/\\u002F/g, '/')
       .replace(/\\\//g, '/')
       .replace(/\\/g, '')
       .replace(/&amp;/g, '&');
@@ -49,7 +52,12 @@
       u.searchParams.delete('chunk');
       return u.toString();
     } catch {
-      return decoded.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
+      let res = decoded.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
+      if (!res.includes('?') && res.includes('&')) {
+        const idx = res.indexOf('&');
+        res = res.substring(0, idx) + '?' + res.substring(idx + 1);
+      }
+      return res;
     }
   }
 
@@ -61,7 +69,7 @@
       const fullHtml = document.documentElement ? document.documentElement.innerHTML : '';
 
       // High Definition (HD) Streams (progressive MP4 with both audio & video)
-      const hdRegex = /\\?"(?:browser_native_hd_url|playable_url_quality_hd|hd_src|hd_src_no_ratelimit)\\?"\s*:\s*\\?"(https?:[^"\\]+?(?:\\.[^"\\]+?)*)\\?"/g;
+      const hdRegex = /\\?"(?:browser_native_hd_url|playable_url_quality_hd|hd_src|hd_src_no_ratelimit|video_hd_url)\\?"\s*:\s*\\?"(https?:[^\"]+?)\\?"/g;
       for (const m of fullHtml.matchAll(hdRegex)) {
         const clean = cleanMediaUrl(m[1]);
         if (clean && clean.includes('fbcdn.net') && !direct.some((item) => item.url === clean)) {
@@ -70,7 +78,7 @@
       }
 
       // Standard Definition (SD) Streams
-      const sdRegex = /\\?"(?:browser_native_sd_url|playable_url|sd_src|sd_src_no_ratelimit|progressive_download_url)\\?"\s*:\s*\\?"(https?:[^"\\]+?(?:\\.[^"\\]+?)*)\\?"/g;
+      const sdRegex = /\\?"(?:browser_native_sd_url|playable_url|sd_src|sd_src_no_ratelimit|video_sd_url|progressive_download_url|playback_url)\\?"\s*:\s*\\?"(https?:[^\"]+?)\\?"/g;
       for (const m of sdRegex) {
         const clean = cleanMediaUrl(m[1]);
         if (clean && clean.includes('fbcdn.net') && !direct.some((item) => item.url === clean)) {
@@ -78,7 +86,26 @@
         }
       }
 
-      // 2. Fallback: check video elements directly
+      // 2. Also check application/json script tags specifically
+      const jsonScripts = document.querySelectorAll('script[type="application/json"]');
+      for (const s of jsonScripts) {
+        const content = s.textContent || '';
+        if (!content.includes('fbcdn.net')) continue;
+        for (const m of content.matchAll(hdRegex)) {
+          const clean = cleanMediaUrl(m[1]);
+          if (clean && clean.includes('fbcdn.net') && !direct.some((item) => item.url === clean)) {
+            direct.push({ url: clean, quality: 'HD Video (1080p/720p)', contentType: 'video/mp4' });
+          }
+        }
+        for (const m of content.matchAll(sdRegex)) {
+          const clean = cleanMediaUrl(m[1]);
+          if (clean && clean.includes('fbcdn.net') && !direct.some((item) => item.url === clean)) {
+            direct.push({ url: clean, quality: 'SD Video (480p/360p)', contentType: 'video/mp4' });
+          }
+        }
+      }
+
+      // 3. Fallback: check video elements directly
       const videos = document.querySelectorAll('video');
       for (const v of videos) {
         const src = v.currentSrc || v.src;

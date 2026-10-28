@@ -170,6 +170,52 @@ func (s *DownloadService) ProbeURL(rawURL string) (*protocol.ResourceInfo, error
 	return s.ProbeURLWithHeaders(rawURL, nil, "")
 }
 
+const standardBrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+func applyPlatformHeaderDefaults(cfg *config.Config, rawURL string) {
+	if cfg.Headers == nil {
+		cfg.Headers = make(map[string]string)
+	}
+
+	lower := strings.ToLower(rawURL)
+	isFB := strings.Contains(lower, "facebook.com") || strings.Contains(lower, "fbcdn.net") || strings.Contains(lower, "fb.watch")
+	isIG := strings.Contains(lower, "instagram.com") || strings.Contains(lower, "cdninstagram.com")
+	isTT := strings.Contains(lower, "tiktok.com") || strings.Contains(lower, "tiktokcdn.com")
+
+	if isFB {
+		if cfg.Headers["Referer"] == "" {
+			cfg.Headers["Referer"] = "https://www.facebook.com/"
+		}
+		if cfg.Headers["Origin"] == "" {
+			cfg.Headers["Origin"] = "https://www.facebook.com"
+		}
+		if cfg.Headers["Sec-Fetch-Dest"] == "" {
+			cfg.Headers["Sec-Fetch-Dest"] = "video"
+		}
+		if cfg.Headers["Sec-Fetch-Mode"] == "" {
+			cfg.Headers["Sec-Fetch-Mode"] = "cors"
+		}
+	} else if isIG {
+		if cfg.Headers["Referer"] == "" {
+			cfg.Headers["Referer"] = "https://www.instagram.com/"
+		}
+	} else if isTT {
+		if cfg.Headers["Referer"] == "" {
+			cfg.Headers["Referer"] = "https://www.tiktok.com/"
+		}
+	}
+
+	if (isFB || isIG || isTT) && (cfg.UserAgent == "" || strings.Contains(cfg.UserAgent, "godm/")) {
+		cfg.UserAgent = standardBrowserUserAgent
+	}
+
+	if cfg.Headers["Cookie"] == "" {
+		if cookie := storage.GetCookieHeader(rawURL); cookie != "" {
+			cfg.Headers["Cookie"] = cookie
+		}
+	}
+}
+
 // ProbeURLWithHeaders inspects target URL with custom authentication headers and cookies.
 func (s *DownloadService) ProbeURLWithHeaders(rawURL string, headers map[string]string, userAgent string) (*protocol.ResourceInfo, error) {
 	cfg := config.NewDefaultConfig()
@@ -180,11 +226,7 @@ func (s *DownloadService) ProbeURLWithHeaders(rawURL string, headers map[string]
 	if userAgent != "" {
 		cfg.UserAgent = userAgent
 	}
-	if cfg.Headers["Cookie"] == "" {
-		if cookie := storage.GetCookieHeader(rawURL); cookie != "" {
-			cfg.Headers["Cookie"] = cookie
-		}
-	}
+	applyPlatformHeaderDefaults(cfg, rawURL)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -588,14 +630,7 @@ func (s *DownloadService) StartDownloadWithHeaders(rawURL string, conns int, out
 	if userAgent != "" {
 		cfg.UserAgent = userAgent
 	}
-	if cfg.Headers == nil {
-		cfg.Headers = make(map[string]string)
-	}
-	if cfg.Headers["Cookie"] == "" {
-		if cookie := storage.GetCookieHeader(rawURL); cookie != "" {
-			cfg.Headers["Cookie"] = cookie
-		}
-	}
+	applyPlatformHeaderDefaults(cfg, rawURL)
 
 	// Probe URL
 	ctxProbe, cancelProbe := context.WithTimeout(context.Background(), 15*time.Second)

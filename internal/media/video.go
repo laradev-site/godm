@@ -378,7 +378,31 @@ func buildAuthArgs(mediaURL string, opts *MediaOptions) (args []string, cleanup 
 	if cookieFilePath == "" && browserName == "" {
 		if path, found := storage.GetCookieFilePath(mediaURL); found {
 			cookieFilePath = path
+		} else if rawHdr := storage.GetCookieHeader(mediaURL); rawHdr != "" {
+			netscape := storage.GenerateNetscapeFromHeader(storage.NormalizeDomain(mediaURL), rawHdr)
+			if netscape != "" {
+				tFile := filepath.Join(os.TempDir(), fmt.Sprintf("godm_cookie_%d.txt", time.Now().UnixNano()))
+				if err := os.WriteFile(tFile, []byte(netscape), 0600); err == nil {
+					cookieFilePath = tFile
+					tempFiles = append(tempFiles, tFile)
+				}
+			}
 		}
+	}
+
+	lower := strings.ToLower(mediaURL)
+	isFB := strings.Contains(lower, "facebook.com") || strings.Contains(lower, "fb.watch")
+
+	// Set browser-grade defaults for Facebook authentication & anti-bot checks
+	if isFB {
+		if userAgent == "" {
+			userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+		}
+		if referer == "" {
+			referer = "https://www.facebook.com/"
+		}
+		args = append(args, "--add-header", "Accept-Language: en-US,en;q=0.9")
+		args = append(args, "--add-header", "Sec-Fetch-Mode: navigate")
 	}
 
 	// 1. Pass cookie file if available
@@ -476,20 +500,37 @@ func InspectMediaWithOptions(ctx context.Context, mediaURL string, opts *MediaOp
 	for i := len(raw.Formats) - 1; i >= 0; i-- {
 		f := raw.Formats[i]
 		hInt := int(f.Height)
-		if f.VCodec != "none" && hInt >= 144 {
-			resLabel := fmt.Sprintf("%dp", hInt)
+		isFBFmt := strings.EqualFold(f.FormatID, "hd") || strings.EqualFold(f.FormatID, "sd")
+		if isFBFmt || (f.VCodec != "none" && hInt >= 144) {
+			resLabel := ""
+			formatID := ""
+			sz := int64(f.Filesize)
+			if sz <= 0 {
+				sz = int64(f.FilesizeAp)
+			}
+			ext := f.Ext
+			if ext == "" {
+				ext = "mp4"
+			}
+
+			if strings.EqualFold(f.FormatID, "hd") {
+				resLabel = "HD Video (High Definition)"
+				formatID = "hd/bestvideo+bestaudio/best"
+			} else if strings.EqualFold(f.FormatID, "sd") {
+				resLabel = "SD Video (Standard Definition)"
+				formatID = "sd/best"
+			} else {
+				resLabel = fmt.Sprintf("%dp", hInt)
+				formatID = fmt.Sprintf("bestvideo[height<=%d]+bestaudio/best[height<=%d]", hInt, hInt)
+			}
+
 			if !seenRes[resLabel] {
 				seenRes[resLabel] = true
-				sz := int64(f.Filesize)
-				if sz <= 0 {
-					sz = int64(f.FilesizeAp)
-				}
-
-				label := fmt.Sprintf("%s (%s)", resLabel, strings.ToUpper(f.Ext))
+				label := fmt.Sprintf("%s (%s)", resLabel, strings.ToUpper(ext))
 				info.Formats = append(info.Formats, MediaFormat{
-					FormatID:    fmt.Sprintf("bestvideo[height<=%d]+bestaudio/best[height<=%d]", hInt, hInt),
+					FormatID:    formatID,
 					Resolution:  resLabel,
-					Ext:         "mp4",
+					Ext:         ext,
 					Filesize:    sz,
 					Label:       label,
 					IsAudioOnly: false,

@@ -210,7 +210,24 @@ export default function App() {
           for (const s of rawStreams) {
             if (!s.url) continue;
             // Clean URL: strip DASH chunk slicing & sequencing parameters (bytestart/byteend/range/sq/segment)
-            const clean = s.url.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
+            let clean = s.url;
+            try {
+              const u = new URL(s.url);
+              u.searchParams.delete('bytestart');
+              u.searchParams.delete('byteend');
+              u.searchParams.delete('range');
+              u.searchParams.delete('sq');
+              u.searchParams.delete('segment');
+              u.searchParams.delete('seg');
+              u.searchParams.delete('chunk');
+              clean = u.toString();
+            } catch {
+              clean = s.url.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
+              if (!clean.includes('?') && clean.includes('&')) {
+                const idx = clean.indexOf('&');
+                clean = clean.substring(0, idx) + '?' + clean.substring(idx + 1);
+              }
+            }
             const existing = map.get(clean);
             if (!existing || (s.size || 0) > (existing.size || 0)) {
               map.set(clean, { ...s, url: clean });
@@ -588,10 +605,30 @@ export default function App() {
             targetUrl = streams[idx]?.url;
           }
           if (targetUrl) {
-            const cleanUrl = targetUrl.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
+            let cleanUrl = targetUrl;
+            try {
+              const u = new URL(targetUrl);
+              u.searchParams.delete('bytestart');
+              u.searchParams.delete('byteend');
+              u.searchParams.delete('range');
+              u.searchParams.delete('sq');
+              u.searchParams.delete('segment');
+              u.searchParams.delete('seg');
+              u.searchParams.delete('chunk');
+              cleanUrl = u.toString();
+            } catch {
+              cleanUrl = targetUrl.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
+              if (!cleanUrl.includes('?') && cleanUrl.includes('&')) {
+                const idx = cleanUrl.indexOf('&');
+                cleanUrl = cleanUrl.substring(0, idx) + '?' + cleanUrl.substring(idx + 1);
+              }
+            }
             const headers: Record<string, string> = {};
             if (authSession?.cookies) headers['Cookie'] = authSession.cookies;
             if (authSession?.referer) headers['Referer'] = authSession.referer;
+            else if (cleanUrl.includes('fbcdn.net') || cleanUrl.includes('facebook.com')) {
+              headers['Referer'] = 'https://www.facebook.com/';
+            }
             item = await DownloadService.StartDownloadWithHeaders(
               cleanUrl,
               connections,

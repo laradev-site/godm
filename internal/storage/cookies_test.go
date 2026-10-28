@@ -48,4 +48,20 @@ func TestSaveAndGetCookies(t *testing.T) {
 	if !HasCookiesForDomain(domain) {
 		t.Errorf("HasCookiesForDomain(%q) = false; want true", domain)
 	}
+
+	// Test CDN parent mapping: facebook.com cookies resolved for fbcdn.net
+	fbJar := "# Netscape HTTP Cookie File\n.facebook.com\tTRUE\t/\tTRUE\t2000000000\tc_user\t100001\n"
+	fbHeader := "c_user=100001; xs=sec_tok;"
+	if err := SaveDomainCookies("facebook.com", fbJar, fbHeader); err != nil {
+		t.Fatalf("SaveDomainCookies for facebook.com failed: %v", err)
+	}
+	defer RemoveDomainCookies("facebook.com")
+
+	cdnURL := "https://video.faly1-1.fna.fbcdn.net/v/t39.25447-2/123456_n.mp4?_nc_cat=101"
+	if cdnPath, found := GetCookieFilePath(cdnURL); !found || cdnPath == "" {
+		t.Errorf("GetCookieFilePath for CDN %q should resolve facebook.com cookies", cdnURL)
+	}
+	if cdnHeader := GetCookieHeader(cdnURL); cdnHeader != fbHeader {
+		t.Errorf("GetCookieHeader for CDN = %q; want %q", cdnHeader, fbHeader)
+	}
 }
