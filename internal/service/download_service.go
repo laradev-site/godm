@@ -203,7 +203,7 @@ func (s *DownloadService) InspectVideo(rawURL string) (*media.MediaInfo, error) 
 
 // InspectVideoWithOptions fetches video metadata with cookies or browser authentication.
 func (s *DownloadService) InspectVideoWithOptions(rawURL string, opts media.MediaOptions) (*media.MediaInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	return media.InspectMediaWithOptions(ctx, rawURL, &opts)
 }
@@ -394,26 +394,30 @@ func (s *DownloadService) StartVideoDownloadWithOptions(rawURL string, formatID 
 		_ = os.MkdirAll(outputDir, 0755)
 	}
 
-	ctxProbe, cancelProbe := context.WithTimeout(context.Background(), 30*time.Second)
+	ctxProbe, cancelProbe := context.WithTimeout(context.Background(), 60*time.Second)
 	info, err := media.InspectMediaWithOptions(ctxProbe, rawURL, &opts)
 	cancelProbe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect video: %w", err)
 	}
 
-	filename := info.Title + ".mp4"
+	cleanTitle := media.SanitizeFilename(info.Title)
+	filename := cleanTitle + ".mp4"
 	if isAudioOnly {
-		filename = info.Title + ".mp3"
+		filename = cleanTitle + ".mp3"
 	}
 	if customFilename != "" {
-		filename = customFilename
-		if filepath.Ext(filename) == "" {
+		ext := filepath.Ext(customFilename)
+		base := strings.TrimSuffix(customFilename, ext)
+		cleanBase := media.SanitizeFilename(base)
+		if ext == "" {
 			if isAudioOnly {
-				filename += ".mp3"
+				ext = ".mp3"
 			} else {
-				filename += ".mp4"
+				ext = ".mp4"
 			}
 		}
+		filename = cleanBase + ext
 	}
 	destPath := filepath.Join(outputDir, filename)
 
@@ -559,6 +563,17 @@ func (s *DownloadService) StartDownload(rawURL string, conns int, outputDir stri
 
 // StartDownloadWithHeaders initiates an accelerated download with custom headers, cookies, and user-agent.
 func (s *DownloadService) StartDownloadWithHeaders(rawURL string, conns int, outputDir string, customFilename string, headers map[string]string, userAgent string) (*DownloadItem, error) {
+	// Auto-route video platform URLs (YouTube, TikTok, Instagram, etc.) to the media engine
+	if s.IsVideoURL(rawURL) {
+		opts := media.MediaOptions{}
+		if headers != nil {
+			opts.Cookies = headers["Cookie"]
+			opts.Referer = headers["Referer"]
+		}
+		opts.UserAgent = userAgent
+		return s.StartVideoDownloadWithOptions(rawURL, "bestvideo+bestaudio/best", outputDir, customFilename, opts)
+	}
+
 	if conns <= 0 {
 		conns = config.DefaultConnections
 	}

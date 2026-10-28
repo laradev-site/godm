@@ -135,13 +135,20 @@ export default function App() {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [guideBrowser, setGuideBrowser] = useState<'chrome' | 'edge' | 'brave'>('chrome');
 
-  // Check if domain has stored cookies whenever URL changes
+  // Check if domain has stored cookies and detect video platform whenever URL changes
   useEffect(() => {
     const trimmed = url.trim();
     if (trimmed) {
       DownloadService.HasCookiesForURL(trimmed).then(setHasDomainCookies).catch(() => {});
+      DownloadService.IsVideoURL(trimmed).then((isVid) => {
+        if (isVid) {
+          setIsVideoMode(true);
+          setDetectedCategory('Video');
+        }
+      }).catch(() => {});
     } else {
       setHasDomainCookies(false);
+      setIsVideoMode(false);
     }
   }, [url]);
 
@@ -244,15 +251,16 @@ export default function App() {
           });
         };
 
+        const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(trimmed);
         const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
         const processed = processDirectStreams(rawStreams);
 
         let info: any = null;
-        if (processed.length > 0) {
-          // Instant direct stream resolution (0ms delay, no scraper bottleneck)
+        if (!isYouTube && processed.length > 0) {
+          // Instant direct stream resolution (for Facebook / direct progressive MP4 streams)
           const fallbackTitle = initialFilename && initialFilename !== '(1) Facebook' && initialFilename !== 'Facebook'
             ? initialFilename.replace(/\.[^/.]+$/, '')
-            : 'Facebook Video';
+            : 'Media Video';
           info = {
             id: 'direct_stream',
             url: trimmed,
@@ -260,11 +268,11 @@ export default function App() {
             thumbnail: '',
             duration: 'Direct Stream',
             uploader: 'Browser Sniffer (Authenticated Session)',
-            platform: 'Facebook / Direct Stream',
+            platform: 'Direct Stream',
             formats: processed,
           };
         } else {
-          // No direct streams detected, inspect with yt-dlp
+          // Inspect with yt-dlp (always for YouTube to ensure multi-format audio/video muxing)
           info = await DownloadService.InspectVideoWithOptions(trimmed, mediaOpts);
         }
 
@@ -561,9 +569,17 @@ export default function App() {
 
     try {
       let item: DownloadItem | null = null;
-      if (isVideoMode || mediaInfo) {
-        // If user picked a direct stream from extension, use accelerated multi-thread download directly
-        if (selectedFormat.startsWith('direct_')) {
+      const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(trimmed);
+      let isVid = isVideoMode || Boolean(mediaInfo);
+      if (!isVid) {
+        try {
+          isVid = await DownloadService.IsVideoURL(trimmed);
+        } catch {}
+      }
+
+      if (isVid || mediaInfo) {
+        // If user picked a direct stream from extension, use accelerated multi-thread download directly (not for YouTube)
+        if (!isYouTube && selectedFormat.startsWith('direct_')) {
           const matchedFmt = mediaInfo?.formats?.find((f) => f.formatId === selectedFormat);
           let targetUrl = (matchedFmt as any)?.rawStream?.url;
           if (!targetUrl) {

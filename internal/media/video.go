@@ -75,6 +75,38 @@ func IsVideoPlatform(rawURL string) bool {
 	return false
 }
 
+// fileExists reports whether the path exists and is not a directory.
+func fileExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && !info.IsDir()
+}
+
+var illegalFileChars = regexp.MustCompile(`[\\/:*?"<>|]`)
+
+// SanitizeFilename cleans illegal characters for filesystems across Windows, macOS, and Linux.
+func SanitizeFilename(name string) string {
+	clean := illegalFileChars.ReplaceAllString(name, "_")
+	clean = strings.Trim(clean, " .")
+	for strings.Contains(clean, "__") {
+		clean = strings.ReplaceAll(clean, "__", "_")
+	}
+	clean = strings.TrimSpace(clean)
+	if clean == "" || clean == "." {
+		return "video"
+	}
+	return clean
+}
+
+// getJSRuntimeArg checks for available JavaScript engines required by yt-dlp (Node.js, Deno, Bun, QuickJS).
+func getJSRuntimeArg() []string {
+	for _, rt := range []string{"node", "deno", "bun", "quickjs"} {
+		if path, err := exec.LookPath(rt); err == nil && path != "" {
+			return []string{"--js-runtimes", rt}
+		}
+	}
+	return nil
+}
+
 // GetBinaryPath finds yt-dlp (or yt-dlp.exe on Windows) in local tools, config dir, or PATH.
 func GetBinaryPath() string {
 	binName := "yt-dlp"
@@ -84,26 +116,36 @@ func GetBinaryPath() string {
 
 	// 1. Check local tools folder in current/project dir
 	localTools := filepath.Join(".", "tools", binName)
-	if _, err := os.Stat(localTools); err == nil {
-		abs, err := filepath.Abs(localTools)
-		if err == nil {
+	if fileExists(localTools) {
+		if abs, err := filepath.Abs(localTools); err == nil {
 			return abs
 		}
 		return localTools
 	}
 
-	// 2. Check exe dir/tools
+	// 2. Check exe dir, sibling tools, and parent tools (e.g. when exe is in bin/ or .task/)
 	if exePath, err := os.Executable(); err == nil {
-		sibling := filepath.Join(filepath.Dir(exePath), "tools", binName)
-		if _, err := os.Stat(sibling); err == nil {
+		dir := filepath.Dir(exePath)
+		if sibling := filepath.Join(dir, "tools", binName); fileExists(sibling) {
 			return sibling
+		}
+		if nextToExe := filepath.Join(dir, binName); fileExists(nextToExe) {
+			return nextToExe
+		}
+		parentDir := filepath.Dir(dir)
+		if parentTools := filepath.Join(parentDir, "tools", binName); fileExists(parentTools) {
+			return parentTools
+		}
+		grandParentDir := filepath.Dir(parentDir)
+		if grandTools := filepath.Join(grandParentDir, "tools", binName); fileExists(grandTools) {
+			return grandTools
 		}
 	}
 
 	// 3. Check AppData/Config/godm/tools
 	if appData, err := os.UserConfigDir(); err == nil {
 		appDataPath := filepath.Join(appData, "godm", "tools", binName)
-		if _, err := os.Stat(appDataPath); err == nil {
+		if fileExists(appDataPath) {
 			return appDataPath
 		}
 	}
@@ -111,7 +153,7 @@ func GetBinaryPath() string {
 	// 4. On Linux, check common system locations
 	if runtime.GOOS != "windows" {
 		for _, common := range []string{"/usr/local/bin/yt-dlp", "/usr/bin/yt-dlp", "/usr/share/godm/tools/yt-dlp"} {
-			if _, err := os.Stat(common); err == nil {
+			if fileExists(common) {
 				return common
 			}
 		}
@@ -134,30 +176,36 @@ func GetFFmpegPath() string {
 
 	// 1. Local tools folder in current/project dir
 	localTools := filepath.Join(".", "tools", binName)
-	if _, err := os.Stat(localTools); err == nil {
+	if fileExists(localTools) {
 		if abs, err := filepath.Abs(localTools); err == nil {
 			return abs
 		}
 		return localTools
 	}
 
-	// 2. Sibling in exe dir / tools
+	// 2. Sibling in exe dir, next to exe, and parent tools (e.g. when exe is in bin/ or .task/)
 	if exePath, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exePath)
-		sibling := filepath.Join(dir, "tools", binName)
-		if _, err := os.Stat(sibling); err == nil {
+		if sibling := filepath.Join(dir, "tools", binName); fileExists(sibling) {
 			return sibling
 		}
-		nextToExe := filepath.Join(dir, binName)
-		if _, err := os.Stat(nextToExe); err == nil {
+		if nextToExe := filepath.Join(dir, binName); fileExists(nextToExe) {
 			return nextToExe
+		}
+		parentDir := filepath.Dir(dir)
+		if parentTools := filepath.Join(parentDir, "tools", binName); fileExists(parentTools) {
+			return parentTools
+		}
+		grandParentDir := filepath.Dir(parentDir)
+		if grandTools := filepath.Join(grandParentDir, "tools", binName); fileExists(grandTools) {
+			return grandTools
 		}
 	}
 
 	// 3. AppData / UserConfigDir
 	if appData, err := os.UserConfigDir(); err == nil {
 		appDataPath := filepath.Join(appData, "godm", "tools", binName)
-		if _, err := os.Stat(appDataPath); err == nil {
+		if fileExists(appDataPath) {
 			return appDataPath
 		}
 	}
@@ -173,13 +221,13 @@ func GetFFmpegPath() string {
 			filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links", "ffmpeg.exe"),
 		}
 		for _, p := range commonPaths {
-			if _, err := os.Stat(p); err == nil {
+			if fileExists(p) {
 				return p
 			}
 		}
 	} else {
 		for _, common := range []string{"/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg", "/usr/share/godm/tools/ffmpeg"} {
-			if _, err := os.Stat(common); err == nil {
+			if fileExists(common) {
 				return common
 			}
 		}
@@ -377,6 +425,7 @@ func InspectMediaWithOptions(ctx context.Context, mediaURL string, opts *MediaOp
 	defer cleanup()
 
 	args := []string{"--dump-json", "--no-playlist", "--no-warnings"}
+	args = append(args, getJSRuntimeArg()...)
 	args = append(args, authArgs...)
 	args = append(args, mediaURL)
 
@@ -400,10 +449,11 @@ func InspectMediaWithOptions(ctx context.Context, mediaURL string, opts *MediaOp
 		return nil, fmt.Errorf("failed to parse media metadata: %w", err)
 	}
 
+	cleanTitle := SanitizeFilename(raw.Title)
 	info := &MediaInfo{
 		ID:        raw.ID,
 		URL:       mediaURL,
-		Title:     raw.Title,
+		Title:     cleanTitle,
 		Thumbnail: raw.Thumbnail,
 		Uploader:  raw.Uploader,
 		Platform:  raw.Extractor,
@@ -426,7 +476,7 @@ func InspectMediaWithOptions(ctx context.Context, mediaURL string, opts *MediaOp
 	for i := len(raw.Formats) - 1; i >= 0; i-- {
 		f := raw.Formats[i]
 		hInt := int(f.Height)
-		if f.VCodec != "none" && hInt >= 360 {
+		if f.VCodec != "none" && hInt >= 144 {
 			resLabel := fmt.Sprintf("%dp", hInt)
 			if !seenRes[resLabel] {
 				seenRes[resLabel] = true
@@ -500,6 +550,7 @@ func DownloadMediaWithOptions(
 	if customFilename != "" {
 		ext := filepath.Ext(customFilename)
 		baseTitle = strings.TrimSuffix(customFilename, ext)
+		baseTitle = SanitizeFilename(baseTitle)
 		outTemplate = filepath.Join(outputDir, baseTitle+".%(ext)s")
 	} else {
 		outTemplate = filepath.Join(outputDir, "%(title)s.%(ext)s")
@@ -515,12 +566,12 @@ func DownloadMediaWithOptions(
 		"--progress-template", "%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress.downloaded_bytes)s|%(progress.total_bytes)s",
 		"-N", "16", // 16 concurrent fragments for IDM-speed streaming downloads!
 		"--buffer-size", "1024k",
-		"--http-chunk-size", "10M",
 		"--retries", "10",
 		"--fragment-retries", "10",
 		"-c", // Automatically continue/resume partially downloaded files
 	}
 
+	args = append(args, getJSRuntimeArg()...)
 	// Append authentication arguments (--cookies, --user-agent, etc.)
 	args = append(args, authArgs...)
 
@@ -541,7 +592,8 @@ func DownloadMediaWithOptions(
 	if err != nil {
 		return err
 	}
-	cmd.Stderr = os.Stderr
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -582,16 +634,31 @@ func DownloadMediaWithOptions(
 	}
 
 	waitErr := cmd.Wait()
+	if waitErr != nil {
+		errStr := strings.TrimSpace(stderrBuf.String())
+		if errStr != "" {
+			// Extract most descriptive error line from yt-dlp stderr
+			lines := strings.Split(errStr, "\n")
+			for _, l := range lines {
+				l = strings.TrimSpace(l)
+				if strings.HasPrefix(l, "ERROR:") {
+					return errors.New(l)
+				}
+			}
+			return fmt.Errorf("%w: %s", waitErr, errStr)
+		}
+		return waitErr
+	}
 
 	// Post-check: If yt-dlp finished but left unmerged video & audio fragments, merge them with ffmpeg
 	if ffmpegPath != "" && baseTitle != "" {
 		mergeUnmergedFragments(outputDir, baseTitle, ffmpegPath)
 	}
 
-	return waitErr
+	return nil
 }
 
-// mergeUnmergedFragments scans for any remaining .f*.mp4 and .f*.webm pieces and merges them into a single clean .mp4
+// mergeUnmergedFragments scans for any remaining .f*.mp4, .f*.webm, .f*.m4a pieces and merges them into a single clean .mp4
 func mergeUnmergedFragments(dir string, baseTitle string, ffmpegPath string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -604,11 +671,17 @@ func mergeUnmergedFragments(dir string, baseTitle string, ffmpegPath string) {
 			continue
 		}
 		name := e.Name()
-		if strings.HasPrefix(name, baseTitle) {
-			if strings.Contains(name, ".f") && strings.HasSuffix(name, ".mp4") {
-				vidFile = filepath.Join(dir, name)
-			} else if strings.Contains(name, ".f") && (strings.HasSuffix(name, ".webm") || strings.HasSuffix(name, ".m4a")) {
-				audioFile = filepath.Join(dir, name)
+		if strings.HasPrefix(name, baseTitle) && strings.Contains(name, ".f") {
+			ext := strings.ToLower(filepath.Ext(name))
+			if ext == ".mp4" || ext == ".webm" || ext == ".mkv" {
+				if vidFile == "" {
+					vidFile = filepath.Join(dir, name)
+				}
+			}
+			if ext == ".m4a" || ext == ".webm" || ext == ".mp3" || ext == ".opus" {
+				if audioFile == "" && filepath.Join(dir, name) != vidFile {
+					audioFile = filepath.Join(dir, name)
+				}
 			}
 		}
 	}
@@ -625,8 +698,14 @@ func mergeUnmergedFragments(dir string, baseTitle string, ffmpegPath string) {
 }
 
 func parseSpeed(speedStr string) float64 {
-	// e.g. "15.4MiB/s" or "800KiB/s"
-	speedStr = strings.ToLower(speedStr)
+	speedStr = strings.ToLower(strings.TrimSpace(speedStr))
+	speedStr = strings.TrimPrefix(speedStr, "~")
+	speedStr = strings.TrimSpace(speedStr)
+	if strings.Contains(speedStr, "gib/s") || strings.Contains(speedStr, "gb/s") {
+		valStr := strings.TrimSuffix(strings.TrimSuffix(speedStr, "gib/s"), "gb/s")
+		val, _ := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
+		return val * 1024 * 1024 * 1024
+	}
 	if strings.Contains(speedStr, "mib/s") || strings.Contains(speedStr, "mb/s") {
 		valStr := strings.TrimSuffix(strings.TrimSuffix(speedStr, "mib/s"), "mb/s")
 		val, _ := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
@@ -636,6 +715,11 @@ func parseSpeed(speedStr string) float64 {
 		valStr := strings.TrimSuffix(strings.TrimSuffix(speedStr, "kib/s"), "kb/s")
 		val, _ := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
 		return val * 1024
+	}
+	if strings.Contains(speedStr, "b/s") {
+		valStr := strings.TrimSuffix(speedStr, "b/s")
+		val, _ := strconv.ParseFloat(strings.TrimSpace(valStr), 64)
+		return val
 	}
 	return 0
 }
