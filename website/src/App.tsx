@@ -142,7 +142,7 @@ export default function App() {
               <Download size={18} strokeWidth={2.5} />
             </div>
             <span>GoDM</span>
-            <span className="brand-badge">v0.1.0</span>
+            <span className="brand-badge">v0.2.0</span>
           </a>
 
           <ul className="nav-links">
@@ -193,19 +193,19 @@ export default function App() {
           </p>
 
           <div className="hero-cta-group">
-            <div style={{ display: 'inline-flex', gap: '8px' }}>
+            <div style={{ display: 'inline-flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
               <a
-                href="https://github.com/laradev-site/godm/releases/latest"
+                href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-windows-amd64.zip"
                 className="btn-primary btn-large"
               >
                 <Download size={20} />
-                <span>Download for Windows (x64)</span>
+                <span>Download for Windows (v0.2.0)</span>
               </a>
               <a
-                href="https://github.com/laradev-site/godm/releases/latest"
+                href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-linux-amd64.tar.gz"
                 className="btn-secondary btn-large"
               >
-                <span>Linux (.tar.gz / .deb)</span>
+                <span>Linux (.tar.gz / CLI)</span>
               </a>
             </div>
           </div>
@@ -699,15 +699,15 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm.exe"
                   className="btn-primary"
                   style={{ justifyContent: 'center' }}
                 >
                   <Download size={16} />
-                  <span>Download .EXE (Installer)</span>
+                  <span>Download .EXE (Windows)</span>
                 </a>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-windows-amd64.zip"
                   className="btn-secondary"
                   style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                 >
@@ -729,7 +729,7 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-linux-amd64.tar.gz"
                   className="btn-primary"
                   style={{ justifyContent: 'center' }}
                 >
@@ -737,11 +737,11 @@ export default function App() {
                   <span>Download .TAR.GZ</span>
                 </a>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/latest"
+                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-linux-amd64"
                   className="btn-secondary"
                   style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                 >
-                  <span>Download .DEB (Ubuntu/Debian)</span>
+                  <span>Download Standalone CLI Binary</span>
                 </a>
               </div>
             </div>
@@ -759,23 +759,23 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev-site/godm/tree/master/extension"
+                  href="https://chromewebstore.google.com/detail/godm-download-manager-vid/Inffmibelanhbalcgakhfolgedlgjhjf"
                   target="_blank"
                   rel="noreferrer"
                   className="btn-primary"
                   style={{ justifyContent: 'center' }}
                 >
                   <ExternalLink size={16} />
-                  <span>Get Extension</span>
+                  <span>Chrome Web Store</span>
                 </a>
                 <a
-                  href="https://github.com/laradev-site/godm#browser-extension-installation-guide"
+                  href="https://github.com/laradev-site/godm/raw/master/godm-chrome-extension.zip"
                   target="_blank"
                   rel="noreferrer"
                   className="btn-secondary"
                   style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                 >
-                  <span>Installation Guide</span>
+                  <span>Download Extension .ZIP</span>
                 </a>
               </div>
             </div>
@@ -852,10 +852,10 @@ export default function App() {
             <div>
               <div className="footer-col-title">Downloads</div>
               <ul className="footer-links">
-                <li><a href="https://github.com/laradev-site/godm/releases/latest">Windows Installer (.exe)</a></li>
-                <li><a href="https://github.com/laradev-site/godm/releases/latest">Windows Portable (.zip)</a></li>
-                <li><a href="https://github.com/laradev-site/godm/releases/latest">Linux Package (.deb / .tar.gz)</a></li>
-                <li><a href="https://github.com/laradev-site/godm/releases/latest">Standalone CLI Binary</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm.exe">Windows Binary (.exe)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-windows-amd64.zip">Windows Portable (.zip)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-linux-amd64.tar.gz">Linux Package (.tar.gz)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-linux-amd64">Standalone CLI Binary</a></li>
               </ul>
             </div>
 

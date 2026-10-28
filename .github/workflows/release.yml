@@ -93,7 +93,7 @@ jobs:
           $tag = "${{ steps.ver.outputs.tag }}"
           $zipName = "godm-$tag-windows-amd64.zip"
           
-          New-Item -ItemType Directory -Path "dist_win" -Force | Out-Null
+          New-Item -ItemType Directory -Path "dist_win", "artifacts" -Force | Out-Null
           Copy-Item "bin/godm.exe" "dist_win/"
           Copy-Item "bin/godm-cli.exe" "dist_win/"
           Copy-Item "extension" "dist_win/extension" -Recurse
