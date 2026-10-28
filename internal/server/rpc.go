@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -127,6 +129,11 @@ func StartRPCServer(port int, app *application.App, downloadSvc *service.Downloa
 		if req.URL == "" {
 			http.Error(w, "missing url parameter", http.StatusBadRequest)
 			return
+		}
+
+		// Debug log incoming request for troubleshooting stream inspection
+		if reqData, err := json.MarshalIndent(req, "", "  "); err == nil {
+			_ = os.WriteFile(filepath.Join(os.TempDir(), "godm_last_download_req.json"), reqData, 0644)
 		}
 
 		// Automatically persist session cookies for domain if provided

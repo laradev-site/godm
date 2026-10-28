@@ -203,21 +203,28 @@ export default function App() {
           const map = new Map<string, { url: string; quality?: string; contentType?: string; size?: number }>();
           for (const s of rawStreams) {
             if (!s.url) continue;
-            // Clean URL: strip DASH chunk slicing parameters (bytestart/byteend/range)
-            const clean = s.url.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
+            // Clean URL: strip DASH chunk slicing & sequencing parameters (bytestart/byteend/range/sq/segment)
+            const clean = s.url.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
             const existing = map.get(clean);
             if (!existing || (s.size || 0) > (existing.size || 0)) {
               map.set(clean, { ...s, url: clean });
             }
           }
           let list = Array.from(map.values());
-          // If we have any stream >= 300 KB, filter out tiny noise chunks (< 80 KB)
-          const hasDecentSize = list.some((s) => (s.size || 0) >= 300 * 1024);
-          if (hasDecentSize) {
-            list = list.filter((s) => (s.size || 0) >= 80 * 1024);
+
+          // If we have explicit progressive streams (HD/SD), prefer them over raw network fragments
+          const progressive = list.filter((s) => s.quality && (s.quality.includes('HD') || s.quality.includes('SD')));
+          if (progressive.length > 0) {
+            list = progressive;
+          } else {
+            // Filter noise and keep at most the top 2 streams by size (e.g. video & audio track)
+            const hasDecentSize = list.some((s) => (s.size || 0) >= 300 * 1024);
+            if (hasDecentSize) {
+              list = list.filter((s) => (s.size || 0) >= 80 * 1024);
+            }
+            list.sort((a, b) => (b.size || 0) - (a.size || 0));
+            list = list.slice(0, 2);
           }
-          // Sort descending by filesize
-          list.sort((a, b) => (b.size || 0) - (a.size || 0));
 
           return list.map((s, idx) => {
             let label = s.quality || '';
@@ -264,10 +271,12 @@ export default function App() {
         }
 
         if (info) {
-          const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
-          const processed = processDirectStreams(rawStreams);
-          if (processed.length > 0 && info.formats) {
-            info.formats = [...processed, ...info.formats];
+          if (info.id !== 'direct_stream') {
+            const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
+            const processed = processDirectStreams(rawStreams);
+            if (processed.length > 0 && info.formats) {
+              info.formats = [...processed, ...info.formats];
+            }
           }
 
           setMediaInfo(info);

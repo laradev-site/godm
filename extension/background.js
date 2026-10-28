@@ -77,16 +77,20 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabMediaStreams.delete(tabId);
 });
 
-// Helper: normalize media URLs by stripping chunk slicing parameters (bytestart/byteend/range)
+// Helper: normalize media URLs by stripping chunk slicing & sequencing parameters
 function normalizeMediaUrl(rawUrl) {
   try {
     const u = new URL(rawUrl);
     u.searchParams.delete('bytestart');
     u.searchParams.delete('byteend');
     u.searchParams.delete('range');
+    u.searchParams.delete('sq');
+    u.searchParams.delete('segment');
+    u.searchParams.delete('seg');
+    u.searchParams.delete('chunk');
     return u.toString();
   } catch {
-    return rawUrl.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
+    return rawUrl.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
   }
 }
 

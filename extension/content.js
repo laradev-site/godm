@@ -29,7 +29,7 @@
     }
   });
 
-  // Helper: clean & normalize video URL (strip DASH chunk slicing)
+  // Helper: clean & normalize video URL (strip DASH chunk slicing & sequencing)
   function cleanMediaUrl(raw) {
     if (!raw) return '';
     const decoded = raw
@@ -43,9 +43,13 @@
       u.searchParams.delete('bytestart');
       u.searchParams.delete('byteend');
       u.searchParams.delete('range');
+      u.searchParams.delete('sq');
+      u.searchParams.delete('segment');
+      u.searchParams.delete('seg');
+      u.searchParams.delete('chunk');
       return u.toString();
     } catch {
-      return decoded.replace(/[?&](?:bytestart|byteend|range)=\d+/g, '');
+      return decoded.replace(/[?&](?:bytestart|byteend|range|sq|segment|seg|chunk)=\d+/g, '');
     }
   }
 
@@ -53,40 +57,28 @@
   function extractFacebookDirectUrls() {
     const direct = [];
     try {
-      const scripts = document.querySelectorAll('script');
-      for (const s of scripts) {
-        const content = s.textContent;
-        if (!content) continue;
+      // 1. Search full page HTML (includes all inline scripts, Relay caches, and DOM)
+      const fullHtml = document.documentElement ? document.documentElement.innerHTML : '';
 
-        // 1. High Definition (HD) Streams
-        const hdMatches = content.matchAll(/"(?:browser_native_hd_url|playable_url_quality_hd|hd_src|hd_src_no_ratelimit)"\s*:\s*"([^"]+)"/g);
-        for (const m of hdMatches) {
-          const clean = cleanMediaUrl(m[1]);
-          if (clean && !direct.some((item) => item.url === clean)) {
-            direct.push({ url: clean, quality: 'HD Video (1080p/720p)', contentType: 'video/mp4' });
-          }
-        }
-
-        // 2. Standard Definition (SD) Streams
-        const sdMatches = content.matchAll(/"(?:browser_native_sd_url|playable_url|sd_src|sd_src_no_ratelimit|progressive_download_url)"\s*:\s*"([^"]+)"/g);
-        for (const m of sdMatches) {
-          const clean = cleanMediaUrl(m[1]);
-          if (clean && !direct.some((item) => item.url === clean)) {
-            direct.push({ url: clean, quality: 'SD Video (480p/360p)', contentType: 'video/mp4' });
-          }
-        }
-
-        // 3. DASH Representation Base URLs
-        const baseMatches = content.matchAll(/"base_url"\s*:\s*"(https?:\\\/\\\/[^"]+fbcdn\.net[^"]+)"/g);
-        for (const m of baseMatches) {
-          const clean = cleanMediaUrl(m[1]);
-          if (clean && !direct.some((item) => item.url === clean)) {
-            direct.push({ url: clean, quality: 'Direct Video Stream', contentType: 'video/mp4' });
-          }
+      // High Definition (HD) Streams (progressive MP4 with both audio & video)
+      const hdRegex = /\\?"(?:browser_native_hd_url|playable_url_quality_hd|hd_src|hd_src_no_ratelimit)\\?"\s*:\s*\\?"(https?:[^"\\]+?(?:\\.[^"\\]+?)*)\\?"/g;
+      for (const m of fullHtml.matchAll(hdRegex)) {
+        const clean = cleanMediaUrl(m[1]);
+        if (clean && clean.includes('fbcdn.net') && !direct.some((item) => item.url === clean)) {
+          direct.push({ url: clean, quality: 'HD Video (1080p/720p)', contentType: 'video/mp4' });
         }
       }
 
-      // 4. Check video elements directly
+      // Standard Definition (SD) Streams
+      const sdRegex = /\\?"(?:browser_native_sd_url|playable_url|sd_src|sd_src_no_ratelimit|progressive_download_url)\\?"\s*:\s*\\?"(https?:[^"\\]+?(?:\\.[^"\\]+?)*)\\?"/g;
+      for (const m of sdRegex) {
+        const clean = cleanMediaUrl(m[1]);
+        if (clean && clean.includes('fbcdn.net') && !direct.some((item) => item.url === clean)) {
+          direct.push({ url: clean, quality: 'SD Video (480p/360p)', contentType: 'video/mp4' });
+        }
+      }
+
+      // 2. Fallback: check video elements directly
       const videos = document.querySelectorAll('video');
       for (const v of videos) {
         const src = v.currentSrc || v.src;
@@ -167,13 +159,21 @@
       btn.classList.add('loading');
       textSpan.innerText = 'Extracting auth...';
 
-      // Gather any direct streams detected
-      let directStreams = [...detectedStreams];
+      // Gather direct streams: prefer full progressive streams on Facebook
+      let directStreams = [];
       if (isFacebook) {
         const fbStreams = extractFacebookDirectUrls();
-        for (const s of fbStreams) {
-          if (!directStreams.some((d) => d.url === s.url)) {
-            directStreams.push(s);
+        if (fbStreams.length > 0) {
+          directStreams = fbStreams;
+        }
+      }
+
+      if (directStreams.length === 0) {
+        // Fallback to normalized network streams (deduplicated by clean URL)
+        for (const s of detectedStreams) {
+          const clean = cleanMediaUrl(s.url);
+          if (clean && !directStreams.some((d) => d.url === clean)) {
+            directStreams.push({ ...s, url: clean });
           }
         }
       }
