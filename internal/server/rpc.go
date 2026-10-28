@@ -145,12 +145,21 @@ func StartRPCServer(port int, app *application.App, downloadSvc *service.Downloa
 			_ = storage.SaveDomainCookies(targetDomain, req.CookieJar, req.Cookies)
 		}
 
-		// Focus and show main window
+		// Focus and show main window in front of browser
 		if app != nil {
 			windows := app.Window.GetAll()
 			for _, win := range windows {
-				win.Show()
-				win.Focus()
+				if w, ok := win.(*application.WebviewWindow); ok {
+					w.Restore()
+					w.UnMinimise()
+					w.Show()
+					w.SetAlwaysOnTop(true)
+					w.Focus()
+					w.SetAlwaysOnTop(false)
+				} else {
+					win.Show()
+					win.Focus()
+				}
 			}
 			// Notify UI to open Add Download modal prefilled with URL and auth session
 			app.Event.Emit("extension:new-download", req)

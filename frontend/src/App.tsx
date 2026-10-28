@@ -245,40 +245,31 @@ export default function App() {
           });
         };
 
+        const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
+        const processed = processDirectStreams(rawStreams);
+
         let info: any = null;
-        try {
+        if (processed.length > 0) {
+          // Instant direct stream resolution (0ms delay, no scraper bottleneck)
+          const fallbackTitle = initialFilename && initialFilename !== '(1) Facebook' && initialFilename !== 'Facebook'
+            ? initialFilename.replace(/\.[^/.]+$/, '')
+            : 'Facebook Video';
+          info = {
+            id: 'direct_stream',
+            url: trimmed,
+            title: fallbackTitle,
+            thumbnail: '',
+            duration: 'Direct Stream',
+            uploader: 'Browser Sniffer (Authenticated Session)',
+            platform: 'Facebook / Direct Stream',
+            formats: processed,
+          };
+        } else {
+          // No direct streams detected, inspect with yt-dlp
           info = await DownloadService.InspectVideoWithOptions(trimmed, mediaOpts);
-        } catch (inspectErr: any) {
-          const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
-          const processed = processDirectStreams(rawStreams);
-          if (processed.length > 0) {
-            const fallbackTitle = initialFilename && initialFilename !== '(1) Facebook' && initialFilename !== 'Facebook'
-              ? initialFilename.replace(/\.[^/.]+$/, '')
-              : 'Facebook Video';
-            info = {
-              id: 'direct_stream',
-              url: trimmed,
-              title: fallbackTitle,
-              thumbnail: '',
-              duration: 'Direct Stream',
-              uploader: 'Browser Sniffer (Authenticated Session)',
-              platform: 'Facebook / Direct Stream',
-              formats: processed,
-            };
-          } else {
-            throw inspectErr;
-          }
         }
 
         if (info) {
-          if (info.id !== 'direct_stream') {
-            const rawStreams = overrideAuth?.directStreams || authSession?.directStreams || [];
-            const processed = processDirectStreams(rawStreams);
-            if (processed.length > 0 && info.formats) {
-              info.formats = [...processed, ...info.formats];
-            }
-          }
-
           setMediaInfo(info);
           if (info.formats && info.formats.length > 0) {
             setSelectedFormat(info.formats[0].formatId);
