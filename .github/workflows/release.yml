@@ -136,6 +136,11 @@ jobs:
 
           $binPath = (Resolve-Path "bin/godm.exe").Path
           
+          if (-not (Test-Path "build/windows/nsis/MicrosoftEdgeWebview2Setup.exe")) {
+            Write-Host "Fetching WebView2 bootstrapper..."
+            curl.exe -sSL "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -o "build/windows/nsis/MicrosoftEdgeWebview2Setup.exe"
+          }
+
           cd build/windows/nsis
           Write-Host "Compiling NSIS installer with $makensis for $binPath..."
           & $makensis "-DINFO_PRODUCTVERSION=$ver" "-DARG_WAILS_AMD64_BINARY=$binPath" "project.nsi"

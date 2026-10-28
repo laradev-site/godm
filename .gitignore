@@ -8,6 +8,7 @@ bin/
 *.syso
 .task/
 /godm
+!build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 
 # Go build & test
 *.test
