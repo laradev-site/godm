@@ -121,6 +121,27 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
+  const [stars, setStars] = useState<number | string>(0);
+
+  // Fetch real stargazer count from GitHub API
+  useEffect(() => {
+    fetch('https://api.github.com/repos/laradev-site/godm')
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.stargazers_count === 'number') {
+          const count = data.stargazers_count;
+          if (count >= 1000) {
+            setStars((count / 1000).toFixed(1) + 'k');
+          } else {
+            setStars(count);
+          }
+        }
+      })
+      .catch(() => {
+        setStars(0);
+      });
+  }, []);
+
   const handleCopyCli = () => {
     navigator.clipboard.writeText('curl -fsSL https://raw.githubusercontent.com/laradev/godm/master/install.sh | bash');
     setCopiedCmd(true);
@@ -163,7 +184,7 @@ export default function App() {
             >
               <GithubIcon size={16} />
               <span>Star on GitHub</span>
-              <span style={{ background: '#334155', padding: '1px 6px', borderRadius: '4px', fontSize: '0.75rem' }}>★ 1.2k</span>
+              <span style={{ background: '#334155', padding: '1px 6px', borderRadius: '4px', fontSize: '0.75rem' }}>★ {stars}</span>
             </a>
             <a href="#download" className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
               <Download size={15} />
