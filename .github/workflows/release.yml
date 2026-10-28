@@ -83,7 +83,6 @@ jobs:
 
       - name: Build Application
         run: |
-          (cd frontend && pnpm run build)
           wails3 build
           go build -trimpath -ldflags="-w -s" -o bin/godm-cli.exe ./cmd/godm
 
@@ -167,7 +166,6 @@ jobs:
 
       - name: Build Application
         run: |
-          (cd frontend && pnpm run build)
           wails3 build
           go build -trimpath -ldflags="-w -s" -o bin/godm-cli ./cmd/godm
 

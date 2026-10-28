@@ -21,8 +21,7 @@ frontend/.pnpm-store/
 .pnpm-debug.log*
 
 # Wails
-frontend/bindings/github.com/
-frontend/bindings/log/
+# bindings are checked in for CI build stability
 
 # IDE & OS
 .idea/
