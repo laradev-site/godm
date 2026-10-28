@@ -105,14 +105,40 @@ jobs:
             Remove-Item "ffmpeg.zip", "ffmpeg_extracted" -Recurse -Force -ErrorAction SilentlyContinue
           }
 
+      - name: Setup NSIS
+        shell: pwsh
+        run: |
+          if (Get-Command makensis -ErrorAction SilentlyContinue) {
+            Write-Host "makensis is already in PATH"
+          } elseif (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
+            Write-Host "Adding C:\Program Files (x86)\NSIS to PATH"
+            "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          } else {
+            Write-Host "Installing NSIS via choco..."
+            choco install nsis -y --no-progress
+            "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          }
+
       - name: Build Windows Installer
         shell: pwsh
         run: |
           $ver = "${{ steps.ver.outputs.version }}"
           $tag = "${{ steps.ver.outputs.tag }}"
           
+          $makensis = "makensis"
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
+              $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+            } elseif (Test-Path "C:\ProgramData\chocolatey\bin\makensis.exe") {
+              $makensis = "C:\ProgramData\chocolatey\bin\makensis.exe"
+            }
+          }
+
+          $binPath = (Resolve-Path "bin/godm.exe").Path
+          
           cd build/windows/nsis
-          & makensis "-DINFO_PRODUCTVERSION=$ver" "-DARG_WAILS_AMD64_BINARY=$PWD/../../../bin/godm.exe" "project.nsi"
+          Write-Host "Compiling NSIS installer with $makensis for $binPath..."
+          & $makensis "-DINFO_PRODUCTVERSION=$ver" "-DARG_WAILS_AMD64_BINARY=$binPath" "project.nsi"
           cd ../../..
 
       - name: Package Windows Assets
@@ -131,6 +157,7 @@ jobs:
           if (Test-Path "LICENSE") { Copy-Item "LICENSE" "dist_win/" }
           
           Compress-Archive -Path "dist_win/*" -DestinationPath "artifacts/$zipName" -Force
+          Copy-Item "artifacts/$zipName" "artifacts/godm-windows-amd64.zip"
           Copy-Item "bin/godm.exe" "artifacts/"
           Copy-Item "bin/godm-cli.exe" "artifacts/"
 
@@ -221,6 +248,7 @@ jobs:
           [ -f build/linux/desktop ] && cp build/linux/desktop dist_linux/godm.desktop
           
           tar -czvf "artifacts/godm-${tag}-linux-amd64.tar.gz" -C dist_linux .
+          cp "artifacts/godm-${tag}-linux-amd64.tar.gz" "artifacts/godm-linux-amd64.tar.gz"
           cp bin/godm "artifacts/godm-linux-amd64"
           cp bin/godm-cli "artifacts/godm-cli-linux-amd64"
 

@@ -30,6 +30,9 @@ frontend/.pnpm-store/
 *.swo
 .DS_Store
 Thumbs.db
+.agent/
+tools/
+website/dist/
 
 # Task & Download test state files
 *.godm

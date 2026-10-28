@@ -208,19 +208,28 @@ export default function App() {
           <div className="hero-cta-group">
             <div style={{ display: 'inline-flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
               <a
-                href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-windows-amd64.zip"
+                href="https://github.com/laradev-site/godm/releases/latest/download/godm-setup.exe"
                 className="btn-primary btn-large"
               >
                 <Download size={20} />
-                <span>Download for Windows (v0.2.0)</span>
+                <span>Download Installer for Windows</span>
               </a>
               <a
-                href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-linux-amd64.tar.gz"
+                href="https://github.com/laradev-site/godm/releases/latest/download/godm-windows-amd64.zip"
+                className="btn-secondary btn-large"
+              >
+                <span>Portable .ZIP</span>
+              </a>
+              <a
+                href="https://github.com/laradev-site/godm/releases/latest/download/godm-linux-amd64.tar.gz"
                 className="btn-secondary btn-large"
               >
                 <span>Linux (.tar.gz / CLI)</span>
               </a>
             </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '10px' }}>
+              All-in-one setup • Includes complete media engine (yt-dlp + ffmpeg) & desktop shortcut
+            </p>
           </div>
 
           <div className="hero-spec-strip">
@@ -733,25 +742,32 @@ export default function App() {
                   <span className="target-badge badge-rec">Recommended</span>
                 </div>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '20px' }}>
-                  Full Desktop GUI application for Windows 10 & 11. Includes system tray and download threads inspector.
+                  Full Desktop application for Windows 10 & 11. Includes bundled media engine (yt-dlp + ffmpeg), desktop shortcut, and browser integration.
                 </p>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm.exe"
+                  href="https://github.com/laradev-site/godm/releases/latest/download/godm-setup.exe"
                   className="btn-primary"
                   style={{ justifyContent: 'center' }}
                 >
                   <Download size={16} />
-                  <span>Download .EXE (Windows)</span>
+                  <span>Download Setup Installer (.exe)</span>
                 </a>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-windows-amd64.zip"
+                  href="https://github.com/laradev-site/godm/releases/latest/download/godm-windows-amd64.zip"
                   className="btn-secondary"
                   style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                 >
                   <span>Download Portable .ZIP</span>
+                </a>
+                <a
+                  href="https://github.com/laradev-site/godm/releases/latest/download/godm.exe"
+                  className="btn-secondary"
+                  style={{ justifyContent: 'center', fontSize: '0.85rem' }}
+                >
+                  <span>Standalone Binary (godm.exe)</span>
                 </a>
               </div>
             </div>
@@ -769,7 +785,7 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-linux-amd64.tar.gz"
+                  href="https://github.com/laradev-site/godm/releases/latest/download/godm-linux-amd64.tar.gz"
                   className="btn-primary"
                   style={{ justifyContent: 'center' }}
                 >
@@ -777,7 +793,7 @@ export default function App() {
                   <span>Download .TAR.GZ</span>
                 </a>
                 <a
-                  href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-linux-amd64"
+                  href="https://github.com/laradev-site/godm/releases/latest/download/godm-linux-amd64"
                   className="btn-secondary"
                   style={{ justifyContent: 'center', fontSize: '0.85rem' }}
                 >
@@ -891,10 +907,10 @@ export default function App() {
             <div>
               <div className="footer-col-title">Downloads</div>
               <ul className="footer-links">
-                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm.exe">Windows Binary (.exe)</a></li>
-                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-windows-amd64.zip">Windows Portable (.zip)</a></li>
-                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-v0.2.0-linux-amd64.tar.gz">Linux Package (.tar.gz)</a></li>
-                <li><a href="https://github.com/laradev-site/godm/releases/download/v0.2.0/godm-linux-amd64">Standalone CLI Binary</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest/download/godm-setup.exe">Windows Installer (godm-setup.exe)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest/download/godm-windows-amd64.zip">Windows Portable (.zip)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest/download/godm-linux-amd64.tar.gz">Linux Package (.tar.gz)</a></li>
+                <li><a href="https://github.com/laradev-site/godm/releases/latest/download/godm-linux-amd64">Standalone Linux Binary</a></li>
               </ul>
             </div>
 
