@@ -27,6 +27,34 @@
   padding: 0;
 }
 
+/* Browser Surfaces & Selection */
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input, textarea, select {
+  caret-color: var(--accent);
+}
+
+/* Tabular Numerals for live telemetry, speeds, sizes, and counters */
+.font-mono-val,
+.speed-meter,
+.table-progress-text,
+.idm-table td,
+.threads-grid-table td,
+.step-code,
+.sidebar-badge,
+.inspector-controls,
+.duration-tag {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Universal Custom Dark Scrollbar for entire WebView2 app */
 ::-webkit-scrollbar {
   width: 6px;
@@ -484,10 +512,14 @@ html, body {
 
 .table-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #0284c7, #38bdf8, #10b981);
+  background: var(--accent);
   border-radius: 4px;
   transition: width 0.25s ease;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+  box-shadow: none;
+}
+
+.table-progress-fill.completed {
+  background: var(--success);
 }
 
 .table-progress-fill.paused {
@@ -644,7 +676,7 @@ html, body {
   left: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  background: var(--accent);
   transition: width 0.2s linear;
 }
 
@@ -845,18 +877,19 @@ html, body {
   gap: 8px;
   background: var(--accent);
   color: #fff;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 8px 18px;
   border-radius: 6px;
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px var(--accent-glow);
+  transition: background 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .probe-preview {
@@ -1017,20 +1050,20 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: #2563eb;
   color: #fff;
-  border: none;
+  border: 1px solid #3b82f6;
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .btn-extension-helper:hover {
-  filter: brightness(1.15);
-  transform: translateY(-1px);
+  background: #1d4ed8;
+  border-color: #60a5fa;
 }
 
 /* Video Card in Modal */
@@ -1126,10 +1159,10 @@ html, body {
 
 .guide-modal-card {
   max-width: 630px;
-  background: linear-gradient(180deg, #131c31 0%, #0c1322 100%);
-  border: 1px solid rgba(59, 130, 246, 0.28);
-  border-radius: 16px;
-  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 35px rgba(59, 130, 246, 0.12);
+  background: #0d1322;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9);
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -1151,16 +1184,16 @@ html, body {
 }
 
 .guide-icon-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(37, 99, 235, 0.08) 100%);
-  border: 1px solid rgba(96, 165, 250, 0.4);
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #131c31;
+  border: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #60a5fa;
-  box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
 }
 
@@ -1360,10 +1393,10 @@ html, body {
 }
 
 .browser-tab-btn.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(37, 99, 235, 0.15) 100%);
-  border-color: rgba(96, 165, 250, 0.45);
+  background: #17233f;
+  border-color: #3b82f6;
   color: #93c5fd;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .steps-list {
@@ -1388,17 +1421,18 @@ html, body {
 }
 
 .step-number {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  color: #fff;
-  font-size: 0.74rem;
+  background: #17233f;
+  border: 1px solid #3b82f6;
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
 }
 
 .step-line {
@@ -1491,7 +1525,7 @@ html, body {
   height: 7px;
   border-radius: 50%;
   background: #10b981;
-  box-shadow: 0 0 6px #10b981;
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.6);
 }
 
 .step-btn-chip {
@@ -1508,9 +1542,9 @@ html, body {
 }
 
 .guide-features {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 78, 59, 0.12) 100%);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
   padding: 12px 14px;
   display: flex;
   align-items: flex-start;
@@ -1826,9 +1860,9 @@ html, body {
 }
 
 .lang-card-btn.selected {
-  background: rgba(59, 130, 246, 0.18);
+  background: rgba(59, 130, 246, 0.15);
   border-color: var(--accent);
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .lang-card-flag {

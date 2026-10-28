@@ -27,7 +27,6 @@ import {
   Copy,
   Check,
   Globe,
-  Sparkles,
   Lock,
   ShieldAlert,
   Compass,
@@ -238,7 +237,7 @@ export default function App() {
               resolution: label,
               ext: 'mp4',
               filesize: s.size || 0,
-              label: `⚡ ${label}`,
+              label: label,
               isAudioOnly: false,
               rawStream: s,
             };
@@ -1088,7 +1087,7 @@ export default function App() {
                               <div
                                 className={`table-progress-fill ${isPaused ? 'paused' : ''} ${
                                   isError ? 'error' : ''
-                                }`}
+                                } ${item.status === DownloadStatus.StatusCompleted ? 'completed' : ''}`}
                                 style={{ width: `${item.percent || 0}%` }}
                               />
                             </div>
@@ -1277,7 +1276,7 @@ export default function App() {
         </div>
         <div className="statusbar-right">
           <span>{t.saveTo}: {defaultDir || 'Downloads'}</span>
-          <span>godm v0.1.0-alpha</span>
+          <span>godm v0.2.0</span>
         </div>
       </footer>
 
@@ -1576,7 +1575,7 @@ export default function App() {
                 <Video size={13} /> YouTube, Reels & Media Sniffer
               </span>
               <span className="guide-pill">
-                <Sparkles size={13} /> 16x Parallel Acceleration
+                <Layers size={13} /> 16x Parallel Acceleration
               </span>
             </div>
 
